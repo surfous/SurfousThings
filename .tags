@@ -1,0 +1,20 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	0	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.8	//
+USAGE	/Users/surf/Dropbox/Code/git/SurfousThings/build/bin/assemble.sh	/^USAGE() {$/;"	function	line:19
+USAGE	/Users/surf/Dropbox/Code/git/SurfousThings/build/bin/script/buildtag.sh	/^USAGE() {$/;"	function	line:26
+generate	/Users/surf/Dropbox/Code/git/SurfousThings/build/bin/script/buildtag.sh	/^generate() {$/;"	function	line:76
+checkargs	/Users/surf/Dropbox/Code/git/SurfousThings/build/bin/script/buildtag.sh	/^checkargs() {$/;"	function	line:83
+tag	/Users/surf/Dropbox/Code/git/SurfousThings/build/bin/script/buildtag.sh	/^tag() {$/;"	function	line:105
+gettag	/Users/surf/Dropbox/Code/git/SurfousThings/build/bin/script/buildtag.sh	/^gettag() {$/;"	function	line:111
+USAGE	/Users/surf/Dropbox/Code/git/SurfousThings/build/bin/script/commons.sh	/^USAGE() {$/;"	function	line:17
+errorexit	/Users/surf/Dropbox/Code/git/SurfousThings/build/bin/script/commons.sh	/^errorexit() {$/;"	function	line:21
+USAGE	/Users/surf/Dropbox/Code/git/SurfousThings/build/bin/script/extract.sh	/^function USAGE {$/;"	function	line:21
+extract_region	/Users/surf/Dropbox/Code/git/SurfousThings/build/bin/script/extract.sh	/^extract_region() {$/;"	function	line:76
+list_regions	/Users/surf/Dropbox/Code/git/SurfousThings/build/bin/script/extract.sh	/^list_regions() {$/;"	function	line:93
+USAGE	/Users/surf/Dropbox/Code/git/SurfousThings/build/bin/script/replace.sh	/^function USAGE {$/;"	function	line:16
+replace_target	/Users/surf/Dropbox/Code/git/SurfousThings/build/bin/script/replace.sh	/^replace_target() {$/;"	function	line:66
+list_targets	/Users/surf/Dropbox/Code/git/SurfousThings/build/bin/script/replace.sh	/^list_targets() {$/;"	function	line:83
