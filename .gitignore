@@ -1,4 +1,6 @@
 # example devicetypes and smartapps
 smartapps/examples
 devicetypes/examples
+build/tmp/*
 
+*.bak

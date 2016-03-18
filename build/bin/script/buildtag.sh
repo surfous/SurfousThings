@@ -1,11 +1,10 @@
 #! /bin/bash
 
-if [ -n "$PROJECT_PATH" ]; then
-	SCRIPT_PATH="$PROJECT_PATH/script"
-else
+if [ -z "$SCRIPT_PATH" ]; then
 	SCRIPT_PATH=`dirname "$0"`
 fi
 source "$SCRIPT_PATH/commons.sh"
+SCRIPTNAME=$(basename "$0")
 
 # capture args
 CMD=$1

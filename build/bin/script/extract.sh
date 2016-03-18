@@ -5,10 +5,8 @@
 # Supply optional REGION ID to copy different regions from same file, if any.
 # No REGION ID references the main region
 ###
-if [ -n "$PROJECT_PATH" ]; then
-	SCRIPT_PATH="$PROJECT_PATH/script"
-else
-	SCRIPT_PATH=$(dirname "$0")
+if [ -z "$SCRIPT_PATH" ]; then
+	SCRIPT_PATH=`dirname "$0"`
 fi
 source "$SCRIPT_PATH/commons.sh"
 SCRIPTNAME=$(basename "$0")

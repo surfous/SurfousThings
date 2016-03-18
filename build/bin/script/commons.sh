@@ -8,6 +8,7 @@ UNIQCMD=$(which uniq)
 CUTCMD=$(which cut)
 MKTEMPCMD=$(which mktemp)
 MKDIRCMD=$(which mkdir)
+COMPRESSCMD=$(which zip)
 
 #Set fonts for Help.
 NORM=`tput sgr0`

@@ -13,6 +13,8 @@ LIB_CMD='lib'
 BIN_CMD='bin'
 SCRIPT_CMD='script'
 
+NAMESPACE='surfous'
+
 CMD=$DEFAULT_CMD
 if (( "$#" > "0" )); then
 	CMD=$1
@@ -31,7 +33,7 @@ if [ -z "$PROJECT_PATH" ]; then
 
 	PROJECT_PATH=""
 	CHECK_PATH="$(dirname $SCRIPT_DIR)"
-	echo "check dir path: $CHECK_PATH"
+	# echo "check dir path: $CHECK_PATH" 1>&2
 
 	IS_TOP=false
 
@@ -62,7 +64,7 @@ if [ -z "$PROJECT_PATH" ]; then
 
 	if [[ $CHECK_PATH == "/" ]]
 	then
-		echo "Error: top level project directory not found"
+		echo "Error: top level project directory not found" 1>&2
 		exit 1
 	fi
 fi
@@ -72,13 +74,13 @@ if [[ $CMD == $PROJECT_CMD || $CMD == $DEFAULT_CMD ]]; then
 elif [ $CMD == $TMP_CMD ]; then
 	echo "${PROJECT_PATH}/build/tmp"
 elif [ $CMD == $APPS_CMD ]; then
-	echo "${PROJECT_PATH}/build/smartapps"
+	echo "${PROJECT_PATH}/smartapps/$NAMESPACE"
 elif [ $CMD == $DEVICES_CMD ]; then
-	echo "${PROJECT_PATH}/build/decicetypes"
+	echo "${PROJECT_PATH}/devicetypes/$NAMESPACE"
 elif [ $CMD == $APP_ARCHIVE_CMD ]; then
-	echo "${PROJECT_PATH}/build/smartapps/archive"
+	echo "${PROJECT_PATH}/build/smartapps/$NAMESPACE/archive"
 elif [ $CMD == $DEVICE_ARCHIVE_CMD ]; then
-	echo "${PROJECT_PATH}/build/devicetypes/archive"
+	echo "${PROJECT_PATH}/build/devicetypes/$NAMESPACE/archive"
 elif [ $CMD == $LIB_CMD ]; then
 	echo "${PROJECT_PATH}/build/src/lib"
 elif [ $CMD == $BIN_CMD ]; then
@@ -86,7 +88,7 @@ elif [ $CMD == $BIN_CMD ]; then
 elif [ $CMD == $SCRIPT_CMD ]; then
 	echo "${PROJECT_PATH}/build/bin/script"
 else
-	echo "Error: Invalid command '$CMD'"
+	echo "Error: Invalid command '$CMD'" 1>&2
 	exit 1
 fi
 exit 0

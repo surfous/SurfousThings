@@ -2,12 +2,13 @@
 
 set -e
 
-SCRIPT_PATH="$(dirname $0)"
 SCRIPTNAME=$(basename "$0")
+STARTER_SCRIPT_PATH="$(dirname $0)/script"
 
-export PROJECT_PATH="$($SCRIPT_PATH/path.sh)"
+export PROJECT_PATH="$($STARTER_SCRIPT_PATH/path.sh)"
+export SCRIPT_PATH="$($STARTER_SCRIPT_PATH/path.sh script)"
 
-SCRIPT_PATH="$($SCRIPT_PATH/path.sh script)"
+echo "script path is $SCRIPT_PATH" 1>&2
 
 PROJECT_TMP_PATH="$($SCRIPT_PATH/path.sh tmp)"
 LIB_PATH="$($SCRIPT_PATH/path.sh lib)"
@@ -18,11 +19,13 @@ OPT_DEBUG=false # debug mode
 
 USAGE() {
 	echo "$SCRIPTNAME"
-	echo "${REV}Usage${BOLD} $SCRIPTNAME [-d] ARTIFACT_SOURCE_PATH${NORM}"
-	echo "${REV}Parameters${NORM}"
-	echo " ${BOLD}ARTIFACT_SOURCE_PATH${NORM}        the code file to be copied and assembled"
-	echo "${REV}Options${NORM}"
+	echo "${REV}Usage:${NORM}"
+	echo " ${BOLD}$SCRIPTNAME [-d] ARTIFACT_SOURCE_PATH${NORM}"
+	echo "${REV}Parameters:${NORM}"
+	echo " ${BOLD}ARTIFACT_SOURCE_PATH${NORM}      The code file to be copied and built"
+	echo "${REV}Options:${NORM}"
 	echo " ${BOLD}-d${NORM}                        Sets debug mode (don't clear away temp build dir & files)"
+	echo " ${BOLD}-h${NORM}                        Show this help message and quit"
 	echo "\n"
 }
 
@@ -74,21 +77,33 @@ ARTIFACT_NAME="${ARTIFACT_FILE%.*}"
 ARTIFACT_DIR="${ARTIFACT_NAME}.src"
 
 # Key to the build location variables
-# SurfousThings/build/tmp/                                                                                              $PROJECT_TMP_PATH
+# SurfousThings/                                                                                                            $PROJECT_PATH
+#               build/
+#                     tmp/                                                                                              $PROJECT_TMP_PATH
 #                         devicetypes-                                                                                     $ARTIFACT_TYPE
 #                         smartapps-                                                                                             "
 #                                     name_of_devicetype                                                                   $ARTIFACT_NAME
 #                                     name_of_smartapp                                                                           "
 #                                                       -#####/
 #                         ------------------------------------/                                                            $TMP_BUILD_DIR
-#-------------------------------------------------------------/                                                           $TMP_BUILD_PATH
+# ------------------------------------------------------------/                                                           $TMP_BUILD_PATH
 #                                                              name_of_devicetype.src/                                      $ARTIFACT_DIR
 #                                                              name_of_smartapp.src/                                             "
-#------------------------------------------------------------------------------------/                               $ARTIFACT_BUILD_PATH
+# -----------------------------------------------------------------------------------/                               $ARTIFACT_BUILD_PATH
 #                                                                                     name_of_devicetype.groovy            $ARTIFACT_FILE
-#                                                                                     name_of_smartapp.groovy              $ARTIFACT_FILE
-#-------------------------------------------------------------------------------------------------------------- $ARTIFACT_BUILD_FILE_PATH
+#                                                                                     name_of_smartapp.groovy                    "
+# ------------------------------------------------------------------------------------------------------.groovy $ARTIFACT_BUILD_FILE_PATH
 #
+#               devicetypes/
+#               smartapps/
+#                           surfous/                                                                                           $NAMESPACE
+# ---------------------------------/                                                                                   $ARTIFACT_DEST_DIR
+#                                   name_of_devicetype.src/                                                                 $ARTIFACT_DIR
+#                                   name_of_smartapp.src/                                                                        "
+# --------------------------------------------------------/                                                           $ARTIFACT_DEST_PATH
+#                                                          name_of_devicetype.groovy                                       $ARTIFACT_FILE
+#                                                          name_of_smartapp.groovy                                               "
+# ---------------------------------------------------------------------------.groovy                             $ARTIFACT_DEST_FILE_PATH  *only for getting the BUILDTAG of existing version
 #
 
 # setup temp dir for the build
@@ -181,7 +196,9 @@ done <<< "$TARGET_LIST"
 
 # Move the assembled artifact to the assemble directory
 ARTIFACT_ARCHIVE_DIR="$($SCRIPT_PATH/path.sh ${ARTIFACT_TYPE}_archive)"
-ARTIFACT_DEST_PATH="$($SCRIPT_PATH/path.sh ${ARTIFACT_TYPE})"
+
+ARTIFACT_DEST_DIR="$($SCRIPT_PATH/path.sh ${ARTIFACT_TYPE})"
+ARTIFACT_DEST_PATH="${ARTIFACT_DEST_DIR}/${ARTIFACT_DIR}"
 ARTIFACT_DEST_FILE_PATH="${ARTIFACT_DEST_PATH}/${ARTIFACT_FILE}"
 
 ## Check the destination for a previously built artifact for the same source and move it
@@ -193,31 +210,51 @@ if [ -e "$ARTIFACT_DEST_PATH" ]; then
 	fi
 
 	# move & rename the old version (directory and all) using its buildtag
-	$($MKDIRCMD -p $ARTIFACT_ARCHIVE_DIR)
 	OLD_ARTIFACT_DEST_PATH="$ARTIFACT_ARCHIVE_DIR/$ARTIFACT_NAME.$OLD_ARTIFACT_BUILDTAG"
+	$($MKDIRCMD -p $ARTIFACT_ARCHIVE_DIR)
 	mv "$ARTIFACT_DEST_PATH" "$OLD_ARTIFACT_DEST_PATH"
 	if [ $? -ne 0 ]; then
 		errorexit 19 "mv from $ARTIFACT_DEST_PATH to $OLD_ARTIFACT_DEST_PATH failed"
 	fi
+
+	# compress the old artifact
+	OLD_ARTIFACT_ZIP_PATH="${OLD_ARTIFACT_DEST_PATH}.zip"
+	if [[ -e "$OLD_ARTIFACT_DEST_PATH" && -d "$OLD_ARTIFACT_DEST_PATH" ]]; then
+		$COMPRESSCMD -r $OLD_ARTIFACT_ZIP_PATH $OLD_ARTIFACT_DEST_PATH
+		if [ $? -ne 0 ]; then
+			errorexit 20 "compressing $OLD_ARTIFACT_DEST_PATH to $OLD_ARTIFACT_ZIP_PATH has failed"
+		fi
+
+		# clear away the uncompressed old artifact
+		if [[ -e "$OLD_ARTIFACT_ZIP_PATH" && -e "$OLD_ARTIFACT_DEST_PATH" ]]; then
+			rm -rf $OLD_ARTIFACT_DEST_PATH
+			if [ $? -ne 0 ]; then
+				errorexit 21 "removing uncompressed archived artifact $OLD_ARTIFACT_DEST_PATH has failed"
+			fi
+		else
+			echo "NOTE: No archived artifact at path '$OLD_ARTIFACT_DEST_PATH' to remove or compressed artifact not found" 1>&2
+		fi
+	else
+		echo "NOTE: No archived artifact at path '$OLD_ARTIFACT_DEST_PATH' to compress" 1>&2
+	fi
+else
+	echo "NOTE: No existing artifact at path '$ARTIFACT_DEST_PATH' to archive" 1>&2
 fi
 
-# compress the old artifact
-compress_cmd = "$(which zip) -r"
-$compress_cmd $OLD_ARTIFACT_DEST_PATH $OLD_ARTIFACT_DEST_PATH
-if [ $? -ne 0 ]; then
-	errorexit 20 "compressing $OLD_ARTIFACT_DEST_PATH has failed"
-fi
+
 
 ## Move the newly built artifact (directory and all) into place
 mv "$ARTIFACT_BUILD_PATH" "$ARTIFACT_DEST_PATH"
 if [ $? -ne 0 ]; then
-	errorexit 21 "mv from $ARTIFACT_BUILD_PATH to $ARTIFACT_DEST_PATH failed"
+	errorexit 22 "mv from $ARTIFACT_BUILD_PATH to $ARTIFACT_DEST_PATH failed"
 fi
 
 # clean up tmp dir
 if [ "$OPT_DEBUG" = "false" ]; then
 	rm -rf $TMP_BUILD_PATH
 	if [ $? -ne 0 ]; then
-		errorexit 22 "'rm -rf $TMP_BUILD_PATH' failed"
+		errorexit 23 "'rm -rf $TMP_BUILD_PATH' failed"
 	fi
 fi
+
+echo "Build of $ARTIFACT_DEST_PATH complete" 1>&2
