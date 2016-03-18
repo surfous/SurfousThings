@@ -201,6 +201,8 @@ ARTIFACT_DEST_DIR="$($SCRIPT_PATH/path.sh ${ARTIFACT_TYPE})"
 ARTIFACT_DEST_PATH="${ARTIFACT_DEST_DIR}/${ARTIFACT_DIR}"
 ARTIFACT_DEST_FILE_PATH="${ARTIFACT_DEST_PATH}/${ARTIFACT_FILE}"
 
+echo "\nDestination artifact dir is $ARTIFACT_DEST_PATH" 1>&2
+
 ## Check the destination for a previously built artifact for the same source and move it
 if [ -e "$ARTIFACT_DEST_PATH" ]; then
 	# get the buidtag from the prior artifact
@@ -212,6 +214,7 @@ if [ -e "$ARTIFACT_DEST_PATH" ]; then
 	# move & rename the old version (directory and all) using its buildtag
 	OLD_ARTIFACT_DEST_PATH="$ARTIFACT_ARCHIVE_DIR/$ARTIFACT_NAME.$OLD_ARTIFACT_BUILDTAG"
 	$($MKDIRCMD -p $ARTIFACT_ARCHIVE_DIR)
+	echo "Moving $ARTIFACT_DEST_PATH to $OLD_ARTIFACT_DEST_PATH" 1>&2
 	mv "$ARTIFACT_DEST_PATH" "$OLD_ARTIFACT_DEST_PATH"
 	if [ $? -ne 0 ]; then
 		errorexit 19 "mv from $ARTIFACT_DEST_PATH to $OLD_ARTIFACT_DEST_PATH failed"
@@ -223,6 +226,8 @@ if [ -e "$ARTIFACT_DEST_PATH" ]; then
 		$COMPRESSCMD -r $OLD_ARTIFACT_ZIP_PATH $OLD_ARTIFACT_DEST_PATH
 		if [ $? -ne 0 ]; then
 			errorexit 20 "compressing $OLD_ARTIFACT_DEST_PATH to $OLD_ARTIFACT_ZIP_PATH has failed"
+		else
+			echo "compressed $OLD_ARTIFACT_DEST_PATH to $OLD_ARTIFACT_ZIP_PATH" 1>&2
 		fi
 
 		# clear away the uncompressed old artifact

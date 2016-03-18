@@ -78,9 +78,9 @@ elif [ $CMD == $APPS_CMD ]; then
 elif [ $CMD == $DEVICES_CMD ]; then
 	echo "${PROJECT_PATH}/devicetypes/$NAMESPACE"
 elif [ $CMD == $APP_ARCHIVE_CMD ]; then
-	echo "${PROJECT_PATH}/build/smartapps/$NAMESPACE/archive"
+	echo "${PROJECT_PATH}/smartapps/$NAMESPACE/archive"
 elif [ $CMD == $DEVICE_ARCHIVE_CMD ]; then
-	echo "${PROJECT_PATH}/build/devicetypes/$NAMESPACE/archive"
+	echo "${PROJECT_PATH}/devicetypes/$NAMESPACE/archive"
 elif [ $CMD == $LIB_CMD ]; then
 	echo "${PROJECT_PATH}/build/src/lib"
 elif [ $CMD == $BIN_CMD ]; then

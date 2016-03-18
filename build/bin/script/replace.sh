@@ -72,7 +72,7 @@ replace_target() {
 		ADDIN_TARGET_PATTERN="$ADDIN_TARGET_PATTERN $OPT_REGION"
 	fi
 
-	$SEDCMD -r -e "\|$ADDIN_TARGET_PATTERN| {" -e "r $SNIPPETPATH" -e 'd' -e '}' -i $TARGETPATH
+	$SEDCMD -r -i -e "\|$ADDIN_TARGET_PATTERN| {" -e "r $SNIPPETPATH" -e 'd' -e '}' $TARGETPATH
 	if [ $? -ne 0 ]; then
 		errorexit 40 "sed extract failed" false
 	fi
