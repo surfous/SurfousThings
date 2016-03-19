@@ -1,24 +1,24 @@
 /**
- *  Monoprice NO-LABEL (Vision OEM) Garage Door Sensor
+ *  Monoprice NO-LABEL (Vision OEM) Shock Sensor
  *
- *  Capabilities: Contact Sensor, Battery Indicator
+ *  Capabilities: Acceleration Sensor (shock), Battery Indicator
  *
  *  Notes:
  *  *	After pairing, set device preferences in the app, open the sensor for at least five
  *  	seconds then close to wake it and complete device type recognition and initialization.
- *  *	The Monoprice Shock Sensor has an identical device fingerprint.
+ *  *	The Monoprice Garage Door Sensor has an identical device fingerprint.
  *  	If a device of that type pairs with this handler on inclusion, change it to use the
- *  	"Monoprice NO-LABEL Shock Sensor" handler from the "My Devices" tab.
+ *  	"Monoprice NO-LABEL Garage Door Sensor" handler from the "My Devices" tab.
  *
  *  Raw Description: 0 0 0x2001 0 0 0 7 0x30 0x71 0x85 0x80 0x72 0x86 0x84
  *
- * Garage Door Sensor:
- *  VersionReport: application version: 4, Z-Wave firmware version: 84, Z-Wave lib type: 6, Z-Wave version: 3.52
- *  MSR: 0109-200A-0A02
+ * Shock Sensor:
+ *  VersionReport: application version: 4, Z-Wave firmware version: 84, Z-Wave lib type: 6, Z-Wave version: 3.40
+ *  MSR: 0109-2003-0302
  *
  *  Author: surfous
  *  Date: 2016-03-18
- *  Build: 20160318-224354.11439
+ *  Build: 20160318-224410.12090
  */
 
 import groovy.transform.Field
@@ -70,16 +70,21 @@ tamper_attr_map.FALSE_MANUAL = 'Manually'
 @Field final Short	ZWAVE_FALSE = 0x00
 @Field final Map	ZWAVE = [ZWAVE_TRUE: true, ZWAVE_FALSE: false].withDefault {false}
 
-@Field Map garagedoor_attr_map = [:]
-garagedoor_attr_map.SENSOR_TYPE = 'garagedoor'
-garagedoor_attr_map.SENSOR_LABEL = 'garage door'
-garagedoor_attr_map.PRODUCT_TYPE_ID = 0x200A
-garagedoor_attr_map.NAME = 'contact'
-garagedoor_attr_map.LABEL = 'contact'
-garagedoor_attr_map.TRUE = 'open'
-garagedoor_attr_map.FALSE = 'closed'
-garagedoor_attr_map.STATEMAP = [(true): garagedoor_attr_map.TRUE, (false): garagedoor_attr_map.FALSE].withDefault {garagedoor_attr_map.FALSE}
-@Field final Map	GARAGEDOOR = garagedoor_attr_map
+@Field Map shock_attr_map = [:]
+shock_attr_map.SENSOR_TYPE = 'shock'
+shock_attr_map.SENSOR_LABEL = 'shock'
+shock_attr_map.PRODUCT_TYPE_ID = 0x2003
+shock_attr_map.NAME = 'shock'
+shock_attr_map.LABEL = 'shock'
+shock_attr_map.TRUE = 'active'
+shock_attr_map.FALSE = 'inactive'
+shock_attr_map.STATEMAP = [(true): shock_attr_map.TRUE, (false): shock_attr_map.FALSE].withDefault {shock_attr_map.FALSE}
+@Field final Map	SHOCK = shock_attr_map
+
+@Field Map battery_attr_map = [:]
+battery_attr_map.NAME = 'battery'
+battery_attr_map.LABEL = battery_attr_map.NAME
+@Field final Map BATTERY = battery_attr_map
 
 @Field Map unknown_attr_map = [:]
 unknown_attr_map.UNKNOWN = 'unknown'
@@ -138,7 +143,6 @@ unknown_attr_map.STATEMAP = [:].withDefault {unknown_attr_map.UNKNOWN}
 // smartlog scopes
 
 @Field final String ZWEH = 'Z-WaveEventHandler' // For handlers of events sent by the device itself
-@Field final String RA = 'ReportAction' // action taken as the result of a zwave report
 @Field final String DTI = 'DeviceTypeInternal' // for commands that are automatically called in a device type's lifecycle
 @Field final String CCMD = 'STDeviceCommand' // capability or standalone command
 @Field final String CCC = 'CommandClassCommand' // wraps a single command class
@@ -167,13 +171,13 @@ preferences
 
 metadata
 {
-	definition (name: 'Monoprice NO-LABEL Garage Door Sensor', namespace: 'surfous', author: 'surfous')
+	definition (name: 'Monoprice NO-LABEL Shock Sensor', namespace: 'surfous', author: 'surfous')
 	{
 		capability 'Battery'
-		capability 'Contact Sensor'
+		capability 'Shock Sensor'
 		capability 'Sensor'
 
-		attribute 'sensorType', 'enum', [UNKNOWN_SENSOR_TYPE, 'garagedoor']
+		attribute 'sensorType', 'enum', [UNKNOWN_SENSOR_TYPE, 'shock']
 		attribute 'tamper', 'enum', ['clear', 'detected']
 		attribute 'lastUpdated', 'number'
 		attribute 'lastSensorReport', 'number'
@@ -215,21 +219,21 @@ metadata
 
 	tiles
 	{
-		standardTile('contact', 'device.contact', width: 2, height: 2)
+		standardTile(SHOCK.NAME, "device.${SHOCK.NAME}", width: 2, height: 2)
 		{
-			state("${GARAGEDOOR.FALSE}",  label:"closed", icon:'st.doors.garage.garage-closed',
-				backgroundColor:COLOR_GREEN, defaultState: true)
-			state("${GARAGEDOOR.TRUE}", label:"open", icon:'st.doors.garage.garage-open',
-				backgroundColor:COLOR_ORANGE)
+			state("${SHOCK.FALSE}", label:"no $SHOCK.LABEL", icon:'st.security.alarm.clear',
+				backgroundColor:COLOR_WHITE)
+			state("${SHOCK.TRUE}",   label:"> $SHOCK.LABEL <", icon:'st.security.alarm.alarm',
+				backgroundColor:COLOR_RED)
 			state(UNKNOWN.SENSOR_TYPE, label: UNKNOWN.SENSOR_TYPE, icon:'st.unknown.zwave.sensor',
 				backgroundColor: COLOR_BLACK)
 		}
 
-		standardTile('tamper', 'device.tamper')
+		standardTile(TAMPER.NAME, "device.${TAMPER.NAME}")
 		{
 			state(TAMPER.FALSE, label:"device ok", icon:'st.security.alarm.clear',
 				backgroundColor:COLOR_WHITE, defaultState: true)
-			state(TAMPER.TRUE, label:"> tamper <", icon:'st.security.alarm.alarm',
+			state(TAMPER.TRUE, label:"> $TAMPER.LABEL <", icon:'st.security.alarm.alarm',
 				backgroundColor:COLOR_RED, action: 'clearTamperManually')
 		}
 
@@ -238,19 +242,19 @@ metadata
 			state("configure", action: "configuration.configure", icon:"st.secondary.configure")
 		}
 
-		valueTile('battery', 'device.battery')
+		valueTile(BATTERY.NAME, "device.${BATTERY.NAME}")
 		{
-			state('battery', label:'battery ${currentValue}%',
+			state(BATTERY.NAME, label:"$BATTERY.LABEL ${currentValue}%",
 			backgroundColors:[
-				[value: PCT_BATT_FULL, color: COLOR_BATT_FULL], // green
-				[value: PCT_BATT_GOOD,  color: COLOR_BATT_GOOD], // green
-				[value: PCT_BATT_LOW,  color: COLOR_BATT_LOW], // yellow
-				[value: PCT_BATT_CRIT,   color: COLOR_BATT_CRIT], // red
+				[value: 100, color: COLOR_GREEN], // green
+				[value: 60,  color: COLOR_GREEN], // green
+				[value: 30,  color: COLOR_YELLOW], // yellow
+				[value: 1,   color: COLOR_RED], // red
 			])
 		}
 
-		main(['contact'])
-		details(['contact', 'battery', 'tamper'])
+		main([SHOCK.NAME])
+		details([SHOCK.NAME, BATTERY.NAME, TAMPER.NAME])
 	}
 }
 
@@ -320,8 +324,8 @@ void configureMainAttr()
 	String sensorType = getAttributeSensorType()
 	switch (sensorType)
 	{
-		case GARAGEDOOR.SENSOR_TYPE:
-			MAIN_ATTR = GARAGEDOOR
+		case SHOCK.SENSOR_TYPE:
+			MAIN_ATTR = SHOCK
 		break
 		default:
 			MAIN_ATTR = UNKNOWN
@@ -538,6 +542,7 @@ void overrideWakeupInterval(Number seconds)
 	}
 }
 
+
 /**
  * Gets the name of a zwave command method
  * @param  zwaveCmd a zwave command received from the device and parsed by the zwave utility class
@@ -714,11 +719,6 @@ def chainDeviceMetadata(Boolean fromWakeUpRitual=false)
 			smartlog.debug('device metadata chain requires wakeup interval capabilities link')
 			cq.add(ccWakeUpIntervalCapabilitiesGet())
 		}
-		else if (getAttributeSensorType() != determineSensorType())
-		{
-			macroInitializeSensorType()
-			chainDeviceMetadata()
-		}
 		else
 		{
 			smartlog.error 'chainDeviceMetadata should never fall to this level. Check that chain boolean includes all links.'
@@ -746,8 +746,7 @@ Boolean isDeviceMetadataChainComplete()
 	initDeviceMetadata()
 	if (state.deviceMeta?.msr &&
 		state.deviceMeta?.version &&
-		state.deviceMeta?.wakeup &&
-		getAttributeSensorType() == determineSensorType() )
+		state.deviceMeta?.wakeup)
 	{
 		isComplete = true
 	}
@@ -824,13 +823,19 @@ String getAttributeSensorType()
 	return sensorType
 }
 
-void macroInitializeSensorType()
+Boolean macroInitializeSensorType()
 {
+	smartlog.fine "in macroInitializeSensorType()"
 	setAttributeSensorType()
 	configureMainAttr()
-	Map initSensorEvent = [name: MAIN_ATTR.NAME, value: MAIN_ATTR.FALSE,
-		isStateChange: true, displayed: true]
-	sendLoggedEvent(initSensorEvent)
+	if (MAIN_ATTR && MAIN_ATTR.NAME != UNKNOWN.UNKNOWN)
+	{
+		Map initSensorEvent = [name: MAIN_ATTR.NAME, value: MAIN_ATTR.FALSE,
+			isStateChange: true, displayed: true]
+		sendLoggedEvent(initSensorEvent)
+		return true
+	}
+	return false
 }
 
 def handleSensorReport(Boolean sensorValue, physicalgraph.zwave.Command deviceEvent)
@@ -996,6 +1001,7 @@ def ccWakeUpNoMoreInformation()
 }
 // REGION END - ORIGIN cc_wakeup_snip.groovy region v2
 
+
 // // CommandClass Association v2
 def ccAssociationSet()
 {
@@ -1092,55 +1098,24 @@ def zwaveEvent(physicalgraph.zwave.commands.batteryv1.BatteryReport deviceEvent)
 {
 	smartlog.fine(ZWEH, "handling BatteryReport '$deviceEvent'")
 	def cq = CommandQueue()
-	Integer batteryLevel = deviceEvent.batteryLevel // this device returns level as %
+	Integer batteryLevel = deviceEvent.batteryLevel
 	state.batteryLastUpdateTime = now()
 	String batteryMessage = "battery level is reported as $batteryLevel"
-	Map evtMap = [ name: "battery_raw", value: batteryLevel, unit: "%" , displayed: false, description: deviceEvent as String, descriptionText: batteryMessage]
-	smartlog.info batteryMessage
-	Integer batteryLevelAsPercent
+	Map evtMap = [ name: "battery", value: batteryLevel, unit: "%" , displayed: true, description: deviceEvent as String, descriptionText: message]
+	log.info batteryMessage
 	if (batteryLevel == 0xFF || batteryLevel == 0 )
 	{
-		batteryLevelAsPercent = 1
+		evtMap.value = 1
+		evtMap.descriptionText = "${device.displayName}: battery is almost dead!"
 	}
-	cq.add batteryReportAction(batteryLevelAsPercent, deviceEvent as String)
+	else if (batteryLevel < 15 )
+	{
+		evtMap.descriptionText = "${device.displayName}: battery is low!"
+	}
+	cq.add evtMap
 	return cq
 }
 
-/**
-	Reusable action to normaliza battery event handling between devices
- */
-def Map batteryReportAction(Integer batteryPercent, String deviceEventString)
-{
-	Map batteryEvent = [name: "battery", value: batteryPercent, unit: "%" , displayed: true, description: deviceEventString]
-	// handle bad values
-	if (batteryPercent > 100)
-	{
-		smartlog.warn(RA, "batteryPercent was reported as ${batteryPercent} but maximum is 100 - setting value to 100")
-		batteryPercent = 100
-	}
-	else if (batteryPercent < 0)
-	{
-		smartlog.warn(RA, "batteryPercent was reported as ${batteryPercent} but minimum is 0 - setting value to 0")
-		batteryPercent = 0
-	}
-
-	// set the description text accordingly
-	if (batteryPercent <= PCT_BATT_CRIT)
-	{
-		batteryEvent.value = 1
-		batteryEvent.descriptionText = "${device.displayName}: battery is almost dead! (${batteryPercent}%)"
-	}
-	else if (batteryPercent <= PCT_BATT_LOW)
-	{
-		batteryEvent.descriptionText = "${device.displayName}: battery is low! (${batteryPercent}%)"
-	}
-	else
-	{
-		batteryEvent.descriptionText = "${device.displayName}: battery is at ${batteryPercent}%"
-	}
-	smartlog.info(RA, batteryEvent.descriptionText)
-	return batteryEvent
-}
 
 // // CommandClass Version
 def ccVersionGet()
@@ -1170,7 +1145,6 @@ def zwaveEvent(physicalgraph.zwave.commands.versionv1.VersionReport deviceEvent)
 	cq.add(chainDeviceMetadata())
 	return cq
 }
-
 
 // REGION BEGIN - ORIGIN cc_manufacturer_specific_snip.groovy region v1
 /*
@@ -1290,7 +1264,7 @@ def zwaveEvent(physicalgraph.zwave.commands.alarmv2.AlarmReport deviceEvent)
 
 def ccAlarmTypeSupportedGet()
 {
-	smartlog.fine(CCC, ' issuing AlarmTypeSupportedGet')
+	smartlog.fine(CCC, 'issuing AlarmTypeSupportedGet')
 	return zwave.alarmV2.alarmTypeSupportedGet()
 }
 

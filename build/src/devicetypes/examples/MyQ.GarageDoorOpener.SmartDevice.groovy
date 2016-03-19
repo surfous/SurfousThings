@@ -24,7 +24,7 @@
  *
  **************************
  * 
- * USAGE:
+ * showUsageMsg:
  * Put this in Device Type. Don't install until you have all other device types scripts added
  * Refer to MyQ Service Manager SmartApp
  *

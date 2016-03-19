@@ -1283,6 +1283,6 @@ def zwaveEvent(physicalgraph.zwave.Command deviceEvent)
 	ClosureClasses down here.
  */
 
-// ADDIN TARGET Smartlog_cc
+// ADDIN TARGET SmartLog_cc
 
 // ADDIN TARGET CommandQueue_cc

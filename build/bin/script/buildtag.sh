@@ -22,7 +22,7 @@ BUILDTAG_EXTRACT_LINE_PATTERN="^.*?Build:\s+($BUILDTAG_EXTRACT_TAG_PATTERN).*$"
 # getopts defaults
 OPT_GET_TAG=false # read the buildtag from a built artifact rather than writing it
 
-USAGE() {
+showUsageMsg() {
 	echo "${BOLD}$SCRIPTNAME${NORM}"
 	echo "${REV}Usage${NORM} ${BOLD}$SCRIPTNAME [-g] PATH${NORM}"
 	echo " Generates a build tag and replace {{BUILDTAG}} if preceded by 'Build:' in PATH "
@@ -37,7 +37,7 @@ USAGE() {
 #Check the number of arguments. If none are passed, print help and exit.
 NUMARGS=$#
 if [ $NUMARGS -eq 0 ]; then
-  USAGE
+  showUsageMsg
   exit 1
 fi
 
@@ -54,7 +54,7 @@ while getopts :gh FLAG; do
       OPT_GET_TAG=true
       ;;
     h)  #show help
-      USAGE
+      showUsageMsg
 	  exit 0
       ;;
     \?) #unrecognized option - show help
@@ -103,7 +103,7 @@ checkargs() {
 
 tag() {
 	generate
-	$SEDCMD -r -i.bak "/$BUILDDATE_LINE_PATTERN/s/$BUILDDATE_TOKEN/$BUILDDATE/" $TARGET_PATH
+	$SEDCMD -r -i "/$BUILDDATE_LINE_PATTERN/s/$BUILDDATE_TOKEN/$BUILDDATE/" $TARGET_PATH
 	$SEDCMD -r -i "/$BUILDTAG_LINE_PATTERN/s/$BUILDTAG_TOKEN/$BUILDTAG/" $TARGET_PATH
 }
 

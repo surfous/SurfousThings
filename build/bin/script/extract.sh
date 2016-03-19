@@ -16,7 +16,7 @@ OPT_lIST_INSTEAD=false # list
 OPT_REGION='' # region id
 
 #Help function
-function USAGE {
+function showUsageMsg {
   echo -e "${REV}Usage:${NORM} ${BOLD}$SCRIPTNAME [-l] [-r REGION] FILEPATH${NORM}"\\n
   echo "${BOLD}Parameters${NORM}"
   echo " FILEPATH  --Path of the origin file to extract from"
@@ -33,7 +33,7 @@ function USAGE {
 #Check the number of arguments. If none are passed, print help and exit.
 NUMARGS=$#
 if [ $NUMARGS -eq 0 ]; then
-  USAGE
+  showUsageMsg
   exit 1
 fi
 
@@ -53,7 +53,7 @@ while getopts :lr:h FLAG; do
       OPT_REGION=$OPTARG
       ;;
     h)  #show help
-      USAGE
+      showUsageMsg
 	  exit 0
       ;;
     \?) #unrecognized option - show help

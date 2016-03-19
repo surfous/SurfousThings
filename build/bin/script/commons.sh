@@ -10,33 +10,33 @@ MKTEMPCMD=$(which mktemp)
 MKDIRCMD=$(which mkdir)
 COMPRESSCMD=$(which zip)
 
-#Set fonts for Help.
+# Set font faces for Help.
 NORM=`tput sgr0`
 BOLD=`tput bold`
 REV=`tput smso`
 
-USAGE() {
-	echo "No usage defined. Please define a usage method in the sourcing script"
+showUsageMsg() {
+	echo "${BOLD}No usage defined.${NORM} Please define a usage method in the sourcing script"
 }
 
 errorexit() {
 	STATUSCODE=$1
 	ERRORMSG=$2
-	SHOWUSAGE=$3
+	showUsageMsg=$3
 
 	if [ -z "$STATUSCODE" ]; then
 		STATUSCODE=125
 	fi
 
-	if [ -z "$SHOWUSAGE" ]; then
-		SHOWUSAGE=true
+	if [ -z "$showUsageMsg" ]; then
+		showUsageMsg=true
 	fi
 
 	if [ -n "$ERRORMSG" ]; then
-		>&2 echo "${BOLD}FATAL ERROR${NORM}: $ERRORMSG"
+		>&2 echo "${BOLD}FATAL ERROR (${STATUSCODE})${NORM}: $ERRORMSG"
 	fi
-	if [ "$SHOWUSAGE" == true ]; then
-		>&2 USAGE
+	if [ "$showUsageMsg" == true ]; then
+		>&2 showUsageMsg
 	fi
 
 	exit $STATUSCODE

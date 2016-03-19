@@ -1,26 +1,21 @@
 /**
- *  Monoprice NO-LABEL (Vision OEM) Garage Door Sensor
+ *  Monoprice NO-LABEL (Vision OEM) Motion Sensor
  *
- *  Capabilities: Contact Sensor, Battery Indicator
+ *  Capabilities: Motion Sensor, Temperature Measurement, Battery Indicator
  *
- *  Notes:
- *  *	After pairing, set device preferences in the app, open the sensor for at least five
- *  	seconds then close to wake it and complete device type recognition and initialization.
- *  *	The Monoprice Shock Sensor has an identical device fingerprint.
- *  	If a device of that type pairs with this handler on inclusion, change it to use the
- *  	"Monoprice NO-LABEL Shock Sensor" handler from the "My Devices" tab.
+ *  Notes: For the Inactivity Timeout to update or Battery level (only for the first time),
+ *	you have to open the Motion Sensor and leave it open for a few seconds and then close it.
+ *	This triggers the forced Wake up so that the settings can take effect immediately.
  *
- *  Raw Description: 0 0 0x2001 0 0 0 7 0x30 0x71 0x85 0x80 0x72 0x86 0x84
+ *  Raw Description: 0 0 0x2001 0 0 0 9 0x71 0x85 0x80 0x72 0x30 0x86 0x31 0x70 0x84
  *
- * Garage Door Sensor:
- *  VersionReport: application version: 4, Z-Wave firmware version: 84, Z-Wave lib type: 6, Z-Wave version: 3.52
- *  MSR: 0109-200A-0A02
+ *  Icon credite:
+ *   - Battery by Ahmed Elzahra from the Noun Project
  *
  *  Author: surfous
- *  Date: 2016-03-18
- *  Build: 20160318-224354.11439
+ *  Version: {{BUILDDATE}}
+ *  Build: 20160319-041226.16233
  */
-
 import groovy.transform.Field
 import org.codehaus.groovy.runtime.StackTraceUtils
 
@@ -38,24 +33,25 @@ import physicalgraph.zwave.Command
 @Field final Integer HOUR_SEC = 60 * MINUTE_SEC
 @Field final Integer HOUR_MSEC = HOUR_SEC * SECOND_MSEC
 
-// time defaults
 @Field final Integer DEFAULT_INTERCMD_DELAY_MSEC = SECOND_MSEC * 2
 
 @Field final Integer PREF_DEFAULT_WAKE_UP_INTERVAL_HR = 4
 @Field final Integer DEFAULT_WAKE_UP_INTERVAL_SEC = PREF_DEFAULT_WAKE_UP_INTERVAL_HR * HOUR_SEC
 @Field final Integer MIN_WAKE_UP_INTERVAL_SEC = 10 * MINUTE_SEC
-@Field final Integer MAX_WAKE_UP_INTERVAL_SEC = 7 * 24 * HOUR_SEC
+@Field final Integer MAX_WAKE_UP_INTERVAL_SEC = 24 * HOUR_SEC
 
-@Field final Integer ASSOC_CHECK_INTERVAL_MSEC = 24 * HOUR_MSEC
+@Field final Integer ASSOC_CHECK_INTERVAL_MSEC = 24 * HOUR_MSEC // 24 hours
 @Field final Short   ASSOCIATION_GROUP_ID = 1
 
-// duration key must match the attribute name
-@Field final Map FILTER_REPEAT_DURATIONS = [
-	'lastSensorReport': 2 * SECOND_MSEC,
-	'lastUpdated': 3 * SECOND_MSEC].withDefault {SECOND_MSEC}
+@Field final Integer PREF_DEFAULT_MOTION_TIMEOUT_MIN = 3
+@Field final Integer MIN_MOTION_TIMEOUT_MIN = 1
+@Field final Integer MAX_MOTION_TIMEOUT_MIN = 255
+
+@Field final Integer TEMP_SENSOR_FILTER_HISTORY_SIZE = 2
 
 // tamper handling
 @Field final String  PREF_DEFAULT_TAMPER_FALSE_ON_WAKE = true
+
 @Field Map tamper_attr_map = [:]
 tamper_attr_map.NAME = 'tamper'
 tamper_attr_map.TRUE = 'detected'
@@ -63,49 +59,34 @@ tamper_attr_map.FALSE = 'clear'
 tamper_attr_map.FALSE_INIT = 'device initialization'
 tamper_attr_map.FALSE_AUTO = 'Automatically'
 tamper_attr_map.FALSE_MANUAL = 'Manually'
-@Field final Map	TAMPER = tamper_attr_map
+@Field final Map TAMPER = tamper_attr_map
 
-// binary sensor values
-@Field final Short	ZWAVE_TRUE  = 0xFF
-@Field final Short	ZWAVE_FALSE = 0x00
-@Field final Map	ZWAVE = [ZWAVE_TRUE: true, ZWAVE_FALSE: false].withDefault {false}
+// binary sensor values and interpretations
+@Field final Short ZWAVE_TRUE  = 0xFF
+@Field final Short ZWAVE_FALSE = 0x00
+@Field final Map   ZWAVE = [ZWAVE_TRUE: true, ZWAVE_FALSE: false].withDefault {false}
 
-@Field Map garagedoor_attr_map = [:]
-garagedoor_attr_map.SENSOR_TYPE = 'garagedoor'
-garagedoor_attr_map.SENSOR_LABEL = 'garage door'
-garagedoor_attr_map.PRODUCT_TYPE_ID = 0x200A
-garagedoor_attr_map.NAME = 'contact'
-garagedoor_attr_map.LABEL = 'contact'
-garagedoor_attr_map.TRUE = 'open'
-garagedoor_attr_map.FALSE = 'closed'
-garagedoor_attr_map.STATEMAP = [(true): garagedoor_attr_map.TRUE, (false): garagedoor_attr_map.FALSE].withDefault {garagedoor_attr_map.FALSE}
-@Field final Map	GARAGEDOOR = garagedoor_attr_map
+@Field Map motion_attr_map = [:]
+motion_attr_map.NAME = 'motion'
+motion_attr_map.LABEL = motion_attr_map.NAME
+motion_attr_map.TRUE = 'active'
+motion_attr_map.FALSE = 'inactive'
+motion_attr_map.STATEMAP = [(true): motion_attr_map.TRUE, (false): motion_attr_map.FALSE].withDefault {motion_attr_map.FALSE}
+@Field final Map MOTION = motion_attr_map
 
-@Field Map unknown_attr_map = [:]
-unknown_attr_map.UNKNOWN = 'unknown'
-unknown_attr_map.SENSOR_TYPE = unknown_attr_map.UNKNOWN
-unknown_attr_map.SENSOR_LABEL = unknown_attr_map.UNKNOWN
-unknown_attr_map.PRODUCT_TYPE_ID = 0X0
-unknown_attr_map.NAME = unknown_attr_map.UNKNOWN
-unknown_attr_map.LABEL = unknown_attr_map.UNKNOWN
-unknown_attr_map.TRUE = unknown_attr_map.UNKNOWN
-unknown_attr_map.FALSE = unknown_attr_map.UNKNOWN
-unknown_attr_map.STATEMAP = [:].withDefault {unknown_attr_map.UNKNOWN}
-@Field final Map	UNKNOWN = unknown_attr_map
+@Field Map temperature_attr_map = [:]
+temperature_attr_map.NAME = 'temperature'
+temperature_attr_map.LABEL = temperature_attr_map.NAME
+@Field final Map TEMPERATURE = temperature_attr_map
 
-// TODO - find a way to set this based upon SENSOR_TYPE
-@Field Map		    MAIN_ATTR = null
+@Field Map battery_attr_map = [:]
+battery_attr_map.NAME = 'battery'
+battery_attr_map.LABEL = battery_attr_map.NAME
+@Field final Map BATTERY = battery_attr_map
 
-// REGION BEGIN - ORIGIN monoprice_snip.groovy region disambiguation
-// for fingerprint disambiguation
-@Field final Map DEVICE_PRODUCT_ID_DISAMBIGUATION = [
-	'0x2001': 'Monoprice NO-LABEL Door & Window Sensor (Contact Sensor)',
-	'0x2003': 'Monoprice NO-LABEL Shock Sensor (Acceleration Sensor)',
-	'0x200a': 'Monoprice NO-LABEL Garage Door Sensor (Contact Sensor via tilt)'
-	].withDefault {UNKNOWN.NAME}
-// REGION END - ORIGIN monoprice_snip.groovy region disambiguation
+@Field final Map    MAIN_ATTR = MOTION
 
-@Field final Map CMD_CLASS_VERSIONS = [0x20: 1, 0x30: 1, 0x71: 2, 0x72: 1, 0x80: 1, 0x84: 2, 0x85: 2, 0x86: 1]
+@Field final Map CMD_CLASS_VERSIONS = [0x20: 1, 0x30: 1, 0x31: 4, 0x71: 2, 0x72: 1, 0x80: 1, 0x84: 2, 0x85: 2, 0x86: 1]
 
 // REGION BEGIN - ORIGIN colors_snip.groovy main region
 // tile colors
@@ -135,10 +116,19 @@ unknown_attr_map.STATEMAP = [:].withDefault {unknown_attr_map.UNKNOWN}
 @Field final Integer PCT_BATT_CRIT = 5
 // REGION END - ORIGIN colors_snip.groovy main region
 
-// smartlog scopes
+// REGION BEGIN - ORIGIN temperature_colors_snip.groovy main region
+// temperature colors
+@Field final String COLOR_TMP_COLDER = '#153591'
+@Field final String COLOR_TMP_COLD   = '#1E9CBB'
+@Field final String COLOR_TMP_COOL   = '#90D2A7'
+@Field final String COLOR_TMP_ROOM   =  COLOR_GREEN
+@Field final String COLOR_TMP_WARM   = '#F1D801'
+@Field final String COLOR_TMP_HOT    = '#D04E00'
+@Field final String COLOR_TMP_HOTTER = '#BC2323'
+// REGION END - ORIGIN temperature_colors_snip.groovy main region
 
+// smartlog scopes
 @Field final String ZWEH = 'Z-WaveEventHandler' // For handlers of events sent by the device itself
-@Field final String RA = 'ReportAction' // action taken as the result of a zwave report
 @Field final String DTI = 'DeviceTypeInternal' // for commands that are automatically called in a device type's lifecycle
 @Field final String CCMD = 'STDeviceCommand' // capability or standalone command
 @Field final String CCC = 'CommandClassCommand' // wraps a single command class
@@ -146,11 +136,16 @@ unknown_attr_map.STATEMAP = [:].withDefault {unknown_attr_map.UNKNOWN}
 @Field def smartlog
 @Field Long wakeUpPeriod
 
-@Field final Boolean DEBUG_MODE = true
+@Field final Boolean DEBUG_MODE = false
 
 
 preferences
 {
+	input(name: "motionTimeout", type: "enum", title: "Motion timeout minutes",
+		options: ['1','2','3','4','5'],
+		defaultValue: PREF_DEFAULT_MOTION_TIMEOUT_MIN, required: true,
+		description: "$PREF_DEFAULT_MOTION_TIMEOUT_MIN")
+
 	input(name: "wakeupIntervalHrs", type: "enum", title: "Hours between wakeups (1-24)",
 		options: ['1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24'],
 		defaultValue: PREF_DEFAULT_WAKE_UP_INTERVAL_HR, required: true,
@@ -164,68 +159,94 @@ preferences
 		description: "Set Wake Up Interval to 10 minutes for testing")
 }
 
-
-metadata
-{
-	definition (name: 'Monoprice NO-LABEL Garage Door Sensor', namespace: 'surfous', author: 'surfous')
+metadata {
+	definition (name: "Monoprice NO-LABEL Motion Sensor", namespace: "surfous", author: "surfous")
 	{
-		capability 'Battery'
-		capability 'Contact Sensor'
-		capability 'Sensor'
+		capability "Battery"
+		capability "Motion Sensor"
+		capability "Temperature Measurement"
+		capability "Sensor"
 
-		attribute 'sensorType', 'enum', [UNKNOWN_SENSOR_TYPE, 'garagedoor']
-		attribute 'tamper', 'enum', ['clear', 'detected']
+		attribute TAMPER.NAME, "enum", [TAMPER.FALSE, TAMPER.TRUE]
 		attribute 'lastUpdated', 'number'
-		attribute 'lastSensorReport', 'number'
-		attribute 'msr', 'string'
-		attribute 'blank', 'string' // just as the name implies...
+		attribute "blank", "string" // just as the name implies...
 
+		command 'cleanState'
+		command 'overrideWakeupInterval', ['number']
 		command clearTamperManually
 
-		fingerprint deviceId: '0x2001', inClusters: '0x30, 0x71, 0x85, 0x80, 0x72, 0x86, 0x84'
+		fingerprint deviceId:"0x2001", inClusters:"0x71, 0x85, 0x80, 0x72, 0x30, 0x86, 0x31, 0x70, 0x84"
 	}
 
 	simulator
 	{
 		status "wake up" : "command: 8407, payload: "
 
-		status 'alarm_active': zwave.alarmV2.alarmReport(zwaveAlarmType:7, zwaveAlarmEvent:2, alarmLevel:0xff).incomingMessage()
-		status 'alarm_inactive': new physicalgraph.zwave.Zwave().alarmV2.alarmReport(zwaveAlarmType:7, zwaveAlarmEvent:2, alarmLevel:0x00).incomingMessage()
-		status 'alarm_tamper': new physicalgraph.zwave.Zwave().alarmV2.alarmReport(zwaveAlarmType:1, zwaveAlarmEvent:3).incomingMessage()
-
-		status 'basic_active': new physicalgraph.zwave.Zwave().basicV1.basicSet(value: ZWAVE_TRUE).incomingMessage()
-		status 'basic_inactive': new physicalgraph.zwave.Zwave().basicV1.basicSet(value: ZWAVE_FALSE).incomingMessage()
+		status 'active': zwave.alarmV1.alarmReport(alarmType:7, alarmLevel:0xff).incomingMessage()
+		status 'inactive': new physicalgraph.zwave.Zwave().alarmV1.alarmReport(alarmType:7, alarmLevel:0x00).incomingMessage()
+		status 'tamper': new physicalgraph.zwave.Zwave().alarmV1.alarmReport(alarmType:1, alarmLevel:11).incomingMessage()
 
 		status 'batt_ok': new physicalgraph.zwave.Zwave().batteryV1.batteryReport(batteryLevel: 85).incomingMessage()
 		status 'batt_low': new physicalgraph.zwave.Zwave().batteryV1.batteryReport(batteryLevel: 12).incomingMessage()
 		status 'batt_crit': new physicalgraph.zwave.Zwave().batteryV1.batteryReport(batteryLevel: 0).incomingMessage()
-
-		status 'wakeup_interval_cap': new physicalgraph.zwave.Zwave().wakeUpV2.wakeUpIntervalCapabilitiesReport(
-			defaultWakeUpIntervalSeconds: DEFAULT_WAKE_UP_INTERVAL_SEC,
-			minimumWakeUpIntervalSeconds: MIN_WAKE_UP_INTERVAL_SEC,
-			maximumWakeUpIntervalSeconds: MAX_WAKE_UP_INTERVAL_SEC,
-			wakeUpIntervalStepSeconds: 200
-		).incomingMessage()
-
-		reply '8002': 'command: 8003, payload: 55 00' // BatteryReport
-		reply '8405': 'command: 8406, payload: 01 0E 10' // WakeUpIntervalReport
-		reply '8409': 'command: 840A, payload: 00 02 58 09 3A 80 00 0E 10 00 00 C8' // WakeUpIntervalCapabilitiesReport
-		reply '8502': 'command: 8503, payload: 01 05 00 01' // AssociationReport
-	}
-
-	tiles
-	{
-		standardTile('contact', 'device.contact', width: 2, height: 2)
+		for (int i = 0; i <= 100; i += 20)
 		{
-			state("${GARAGEDOOR.FALSE}",  label:"closed", icon:'st.doors.garage.garage-closed',
-				backgroundColor:COLOR_GREEN, defaultState: true)
-			state("${GARAGEDOOR.TRUE}", label:"open", icon:'st.doors.garage.garage-open',
-				backgroundColor:COLOR_ORANGE)
-			state(UNKNOWN.SENSOR_TYPE, label: UNKNOWN.SENSOR_TYPE, icon:'st.unknown.zwave.sensor',
-				backgroundColor: COLOR_BLACK)
+			status "$TEMPERATURE.NAME ${i}F": new physicalgraph.zwave.Zwave().sensorMultilevelV2.sensorMultilevelReport(
+				scaledSensorValue: i, precision: 1, sensorType: 1, scale: 1).incomingMessage()
 		}
 
-		standardTile('tamper', 'device.tamper')
+		reply '8002': 'command: 8003, payload: 55 00'
+	}
+
+	tiles(scale: 2)
+	{
+		multiAttributeTile(name:"multi${MAIN_ATTR.NAME}", type:"generic", width:6, height:4) {
+			tileAttribute("device.${MOTION.NAME}", key: "PRIMARY_CONTROL") {
+				attributeState(MOTION.FALSE, label:"no $MOTION.LABEL", icon:"st.motion.motion.inactive",
+					backgroundColor: COLOR_WHITE, defaultState: true)
+				attributeState(MOTION.TRUE, label:MOTION.LABEL, icon:"st.motion.motion.active",
+					backgroundColor: COLOR_CYAN)
+			}
+			// tileAttribute("device.${TEMPERATURE.NAME}", key: "SECONDARY_CONTROL") {
+			// 	attributeState(TEMPERATURE.NAME, label:TEMPERATURE.LABEL + ' ${currentValue}° F', unit: 'F', icon:"st.alarm.temperature.normal")
+			// }
+			tileAttribute("device.${BATTERY.NAME}", key: "SECONDARY_CONTROL") {
+				attributeState(BATTERY.NAME, label:BATTERY.LABEL + ' ${currentValue}%', unit: '%')
+			}
+		}
+
+		standardTile(MOTION.NAME, "device.motion", width: 2, height: 2)
+		{
+			state(MOTION.FALSE, label:"no $MOTION.LABEL", icon:"st.motion.motion.inactive",
+				backgroundColor: COLOR_WHITE, defaultState: true)
+			state(MOTION.TRUE, label:MOTION.LABEL, icon:"st.motion.motion.active",
+				backgroundColor: COLOR_CYAN)
+		}
+
+		// XXX: Add a setting for the desired temperature unit (C or F).
+		//	  How to change the valueTile's background color scale based
+		//	  on the set unit?
+		standardTile('clean', 'device.dummy', decoration: 'flat')
+		{
+			state 'clean', label: 'clean state', icon: 'st.Appliances.appliances13', action: 'cleanState'
+		}
+
+		valueTile(TEMPERATURE.NAME, "device.${TEMPERATURE.NAME}", width: 2, height: 2)
+		{
+			state(TEMPERATURE.NAME, label:'${currentValue}° F', unit: 'F',
+				backgroundColors:[
+					[value: 31, color: COLOR_TMP_COLDER],
+					[value: 44, color: COLOR_TMP_COLD],
+					[value: 59, color: COLOR_TMP_COOL],
+					[value: 74, color: COLOR_TMP_ROOM],
+					[value: 84, color: COLOR_TMP_WARM],
+					[value: 95, color: COLOR_TMP_HOT],
+					[value: 96, color: COLOR_TMP_HOTTER]
+				]
+			)
+		}
+
+		standardTile(TAMPER.NAME, "device.${TAMPER.NAME}", width: 2, height: 2)
 		{
 			state(TAMPER.FALSE, label:"device ok", icon:'st.security.alarm.clear',
 				backgroundColor:COLOR_WHITE, defaultState: true)
@@ -233,26 +254,27 @@ metadata
 				backgroundColor:COLOR_RED, action: 'clearTamperManually')
 		}
 
-		standardTile("config", "device.configuration", decoration: "flat")
+		valueTile(BATTERY.NAME, "device.${BATTERY.NAME}", width: 2, height: 2)
 		{
-			state("configure", action: "configuration.configure", icon:"st.secondary.configure")
-		}
-
-		valueTile('battery', 'device.battery')
-		{
-			state('battery', label:'battery ${currentValue}%',
+			state(BATTERY.NAME, label:BATTERY.LABEL + ' ${currentValue}%',
 			backgroundColors:[
-				[value: PCT_BATT_FULL, color: COLOR_BATT_FULL], // green
-				[value: PCT_BATT_GOOD,  color: COLOR_BATT_GOOD], // green
-				[value: PCT_BATT_LOW,  color: COLOR_BATT_LOW], // yellow
-				[value: PCT_BATT_CRIT,   color: COLOR_BATT_CRIT], // red
+				[value: 100, color: COLOR_BATT_FULL], // green
+				[value: 60,  color: COLOR_BATT_GOOD], // green
+				[value: 30,  color: COLOR_BATT_OK], // yellow
+				[value: 1,   color: COLOR_BATT_CRIT], // red
 			])
 		}
 
-		main(['contact'])
-		details(['contact', 'battery', 'tamper'])
+		standardTile('blankTile', 'device.blank', inactiveLabel: false, decoration: 'flat', width: 2, height: 2 )
+		{
+			state 'blank', label: '', action: '', icon: '', defaultState: true
+		}
+
+		main(["multi${MAIN_ATTR.NAME}"])
+		details(["multi${MAIN_ATTR.NAME}", TEMPERATURE.NAME, TAMPER.NAME])
 	}
 }
+
 
 // -----
 // Context initialization
@@ -265,7 +287,6 @@ metadata
 void initDeviceEvent()
 {
 	configureLogging()
-	configureMainAttr()
 }
 
 /**
@@ -276,7 +297,6 @@ void initDeviceEvent()
 void initUserEvent()
 {
 	configureLogging()
-	configureMainAttr()
 }
 
 /**
@@ -286,7 +306,6 @@ void initUserEvent()
 void initSmartThingsEvent()
 {
 	configureLogging()
-	configureMainAttr()
 }
 
 void configureLogging()
@@ -314,45 +333,9 @@ void configureLogging()
 	}
 }
 
-void configureMainAttr()
-{
-	smartlog.fine 'in configureMainAttr'
-	String sensorType = getAttributeSensorType()
-	switch (sensorType)
-	{
-		case GARAGEDOOR.SENSOR_TYPE:
-			MAIN_ATTR = GARAGEDOOR
-		break
-		default:
-			MAIN_ATTR = UNKNOWN
-		break
-	}
-	smartlog.debug "configured MAIN_ATTR sensor type to $MAIN_ATTR.SENSOR_TYPE"
-}
-
-/**
- * checks for a repeat event within a configured duration of a previous event
- * @param  filterName name of the filtering event and the attribute where the timestamp is stored
- * @return            true if event is a repeat, false if not
- */
-Boolean filterRepeats(String filterName)
-{
-	smartlog.fine "in filterRepeats for $filterName"
-	Long nowTimestamp = now()
-	Integer filterDelta = FILTER_REPEAT_DURATIONS[filterName]
-	BigDecimal lastFilterTimestamp = device.currentValue(filterName)?:0
-	if ((nowTimestamp - lastFilterTimestamp.longValue()) < filterDelta)
-	{
-		smartlog.debug "repeat of filter event $filterName in less than $filterDelta msec"
-		return true
-	}
-	sendLoggedEvent(name: filterName, value: nowTimestamp)
-	return false
-}
-
 
 // -----
-//  Device type interface methods
+//  Device handler interface methods
 //
 
 /**
@@ -364,9 +347,17 @@ void updated()
 	smartlog.fine(DTI, 'in updated')
 
 	// bail if we've run updated() in the past 3 seconds
-	if (filterRepeats('lastUpdated')) return null
+	BigDecimal lastUpdatedBd = device.currentValue('lastUpdated')?:0
+	//Long lastUpdated = Long.valueOf(device.currentValue('lastUpdated')?:0)
+	if ((now() - lastUpdatedBd.longValue()) < (3 * SECOND_MSEC))
+	{
+		smartlog.fine(DTI, 'duplicate call of updated(). aborting method.')
+		return null
+	}
+	sendLoggedEvent([name: 'lastUpdated', value: now()])
 
 	state.pref = [:]
+	state.pref.motionTimeout = Integer.valueOf(settings?.motionTimeout?:PREF_DEFAULT_MOTION_TIMEOUT_MIN)
 	state.pref.wakeupIntervalHrs = Integer.valueOf(settings?.wakeupIntervalHrs?:PREF_DEFAULT_WAKE_UP_INTERVAL_HR)
 	state.pref.wakeupDevFlag = Boolean.valueOf(settings?.wakeupDevFlag?:false)
 	state.pref.tamperClearAuto = Boolean.valueOf(settings?.tamperClearAuto?:PREF_DEFAULT_TAMPER_FALSE_ON_WAKE)
@@ -423,16 +414,13 @@ def parse(String rawZwaveEventDescription)
 }
 // REGION END - ORIGIN parse_command_snip.groovy main region
 
-
 // -----
 // Capability commands
 //
 def configure()
 {
 	initUserEvent()
-	smartlog.fine(CCMD, 'in Configure.configure')
 	smartlog.fine(CCMD, "state contains: $state")
-	return ccAssociationGet()
 }
 
 
@@ -450,6 +438,66 @@ def clearTamperManually()
 // -----
 //	Local methods
 //
+
+/**
+ * Given a value in degrees Celsius, return the value as converted to degrees Fahrenheit
+ * @param  degreesCelsius temperature measurement as an Integer in degrees Celsius
+ * @return                temperature measurement as an Integer in degrees Fahrenheit
+ */
+Integer convertCelsiusToFahrenheit(Integer degreesCelsius)
+{
+	return (degreesCelsius * 9/5 + 32) as Integer
+}
+
+/**
+ * The temperature reading reported often quickly bounces between two values,
+ * adding a lot of noise in the activity smartlog. In order to filter out the
+ * noise, a basic low pass filter is applied to the measurements
+ * @return Integer
+ */
+Integer filterLowPass(String filterName, Integer historySize, Integer value)
+{
+	if (!state?.filterLP) state.filterLP = [:]
+	if (!state.filterLP[filterName]) state.filterLP.put(filterName, [])
+	state.filterLP[filterName] << value
+	state.filterLP[filterName] = state.filterLP[filterName].drop(state.filterLP[filterName].size() - TEMP_SENSOR_FILTER_HISTORY_SIZE)
+	Integer filteredValue = (state.filterLP[filterName].sum() / state.filterLP[filterName].size()) as Integer
+	smartlog.debug("latest $filterName value: $value; filtered value: $filteredValue")
+	return filteredValue
+}
+
+private String formatOctetAsHex(Short octet)
+{
+	return sprintf('%#x', octet)
+}
+
+private void clearTamper(String clearMethod)
+{
+	smartlog.fine "in clearTamper with arg '$clearMethod'"
+	smartlog.trace "current tamper attribute value is ${device.currentValue('tamper')}"
+	if (device.currentValue(TAMPER.NAME) != TAMPER.FALSE)
+	{
+		Map evtMap = [name: TAMPER.NAME, value: TAMPER.FALSE, description: "tamper alert cleared $clearMethod", isStateChange: true, displayed: true]
+		sendLoggedEvent(evtMap)
+	}
+}
+
+void overrideWakeupInterval(Number seconds)
+{
+	String ovrd = 'overrideSeconds'
+	if (!state?.wakeup) state.wakeup = [:]
+	if (seconds)
+	{
+		Integer intSeconds = seconds as Integer
+		smartlog.info("setting an override wakeup interval of $intSeconds seconds - will set on device next time it wakes up")
+		state.wakeup[ovrd] = intSeconds
+	}
+	else if (state.wakeup.containsKey(ovrd))
+	{
+		smartlog.info("clearing any override wakeup interval - will return device to normal interval on next wake")
+		state.wakeup.remove(ovrd)
+	}
+}
 
 // REGION BEGIN - ORIGIN event_helpers_snip.groovy main region
 /**
@@ -504,50 +552,6 @@ void sendExceptionEvent(Throwable t, String prologue)
 	}
 }
 // REGION END - ORIGIN event_helpers_snip.groovy main region
-
-private String formatNumberAsHex(Number num)
-{
-	if (num != null) return sprintf('%#x', num)
-}
-
-private void clearTamper(String clearMethod)
-{
-	smartlog.fine "in clearTamper with arg '$clearMethod'"
-	smartlog.trace "current tamper attribute value is ${device.currentValue('tamper')}"
-	if (device.currentValue(TAMPER.NAME) != TAMPER.FALSE)
-	{
-		Map evtMap = [name: TAMPER.NAME, value: TAMPER.FALSE, description: "tamper alert cleared $clearMethod", isStateChange: true, displayed: true]
-		sendLoggedEvent(evtMap)
-	}
-}
-
-void overrideWakeupInterval(Number seconds)
-{
-	String ovrd = 'overrideSeconds'
-	if (!state?.wakeup) state.wakeup = [:]
-	if (seconds)
-	{
-		Integer intSeconds = seconds as Integer
-		smartlog.info("setting an override wakeup interval of $intSeconds seconds - will set on device next time it wakes up")
-		state.wakeup[ovrd] = intSeconds
-	}
-	else if (state.wakeup.containsKey(ovrd))
-	{
-		smartlog.info("clearing any override wakeup interval - will return device to normal interval on next wake")
-		state.wakeup.remove(ovrd)
-	}
-}
-
-/**
- * Gets the name of a zwave command method
- * @param  zwaveCmd a zwave command received from the device and parsed by the zwave utility class
- * @return          The name of the Z-Wave command method
- */
-String getZwaveCommandName(physicalgraph.zwave.Command zwaveCmd)
-{
-	String zwaveCmdStr = zwaveCmd as String
-	return zwaveCmdStr.replaceAll(~/\(.*$/, '')
-}
 
 // -----
 //  Tasks
@@ -662,6 +666,45 @@ Map taskGetWakeupInterval()
 	return cq
 }
 
+Map taskGetTemperature()
+{
+	smartlog.fine('wakeup tasks: in taskGetTemperature')
+	def cq = CommandQueue()
+	try
+	{
+		cq.add(ccSensorMultilevelGet())
+	}
+	catch (Throwable ex)
+	{
+		sendExceptionEvent(ex, 'exception caught in taskGetTemperature')
+	}
+	return cq
+}
+
+Map taskSetMotionTimeout()
+{
+	smartlog.trace('wakeup tasks: in taskSetMotionTimeout')
+	def cq = CommandQueue()
+	try
+	{
+		Integer motionTimeoutMinutesPref = state?.pref?.motionTimeout?:PREF_DEFAULT_MOTION_TIMEOUT_MIN
+		if (motionTimeoutMinutesPref != state?.cfg?.motionTimeout)
+		{
+			cq.add(macroConfigureMotionTimeout(motionTimeoutMinutesPref))
+		}
+		else
+		{
+			smartlog.debug "Motion Timeout config matches preference at ${motionTimeoutMinutesPref}"
+		}
+	}
+	catch (Throwable ex)
+	{
+		sendExceptionEvent(ex, 'exception caught in taskSetMotionTimeout')
+	}
+	return cq
+
+}
+
 void taskCheckTamperState()
 {
 	smartlog.trace('wakeup tasks: in taskCheckTamperState')
@@ -714,11 +757,6 @@ def chainDeviceMetadata(Boolean fromWakeUpRitual=false)
 			smartlog.debug('device metadata chain requires wakeup interval capabilities link')
 			cq.add(ccWakeUpIntervalCapabilitiesGet())
 		}
-		else if (getAttributeSensorType() != determineSensorType())
-		{
-			macroInitializeSensorType()
-			chainDeviceMetadata()
-		}
 		else
 		{
 			smartlog.error 'chainDeviceMetadata should never fall to this level. Check that chain boolean includes all links.'
@@ -732,291 +770,134 @@ def chainDeviceMetadata(Boolean fromWakeUpRitual=false)
 	return cq
 }
 
-void initDeviceMetadata()
+Boolean isDeviceMetadataChainComplete()
 {
+	Boolean isComplete = false
 	if (state?.deviceMeta == null)
 	{
 		state.deviceMeta = [:]
 	}
-}
-
-Boolean isDeviceMetadataChainComplete()
-{
-	Boolean isComplete = false
-	initDeviceMetadata()
-	if (state.deviceMeta?.msr &&
-		state.deviceMeta?.version &&
-		state.deviceMeta?.wakeup &&
-		getAttributeSensorType() == determineSensorType() )
+	else if (state.deviceMeta?.msr &&
+			state.deviceMeta?.version &&
+			state.deviceMeta?.wakeup)
 	{
 		isComplete = true
 	}
 	return isComplete
 }
 
-/**
- * takes the productTypeId from the msr stored in state and looks up the corresponding sensor type
- * @return String describing the sensor type
- */
-String determineSensorType()
+def chainVersionCommandClassChecks()
 {
-	smartlog.fine 'in determineSensorType'
-	String sensorType = UNKNOWN.SENSOR_TYPE
-	String sensorLabel = UNKNOWN.SENSOR_TYPE
-	if (state?.deviceMeta?.msr?.productTypeId != null)
-	{
-		String productTypeIdString = formatNumberAsHex(state?.deviceMeta?.msr?.productTypeId)
-		sensorLabel = DEVICE_PRODUCT_ID_DISAMBIGUATION.get(productTypeIdString)
-		switch(productTypeIdString)
-		{
-			case formatNumberAsHex(MAIN_ATTR.PRODUCT_TYPE_ID):
-				sensorType = MAIN_ATTR.SENSOR_TYPE
-			break
-			default:
-				sensorType = UNKNOWN.SENSOR_TYPE
-			break
-		}
-	}
-
-	smartlog.debug "determineSensorType has determined sensor to be of type '$sensorLabel' ($sensorType)"
-	if (sensorType == UNKNOWN.SENSOR_TYPE)
-	{
-		smartlog.warn "Please set the device handler for this device to one written for a $sensorLabel in the IDE"
-	}
-	else
-	{
-		smartlog.warn "Please find a more appropriate device handler for this device and set it in the IDE"
-	}
-	return sensorType
-}
-
-/**
- * uses the sensorType return from determineSensorType and the sensorType device attribute
- * to set the sensorType device attribute if it has changed.
- */
-void setAttributeSensorType()
-{
-	smartlog.fine 'in setAttributeSensorType'
-	String sensorType = determineSensorType()
-	String sensorTypeAttr = getAttributeSensorType()
-	if (sensorTypeAttr != sensorType)
-	{
-		String actionDesc = "sensorType attr is being changed to $sensorType"
-		sendLoggedEvent([name: 'sensorType', value: sensorType, isStateChange: true, displayed: true, description: actionDesc])
-		smartlog.info actionDesc
-	}
-}
-
-/**
- * accessor for sensorType with a default value for a null attribute
- * @return String attribute sensorType
- */
-String getAttributeSensorType()
-{
-	String sensorType = device.currentValue('sensorType')
-	String logMsg = "device attr 'sensorType' is $sensorType."
-	if (sensorType == null)
-	{
-		sensorType = UNKNOWN.SENSOR_TYPE
-		logMsg += " returning null sensorType as $sensorType."
-	}
-	smartlog.debug
-	return sensorType
-}
-
-void macroInitializeSensorType()
-{
-	setAttributeSensorType()
-	configureMainAttr()
-	Map initSensorEvent = [name: MAIN_ATTR.NAME, value: MAIN_ATTR.FALSE,
-		isStateChange: true, displayed: true]
-	sendLoggedEvent(initSensorEvent)
-}
-
-def handleSensorReport(Boolean sensorValue, physicalgraph.zwave.Command deviceEvent)
-{
-	smartlog.fine "in handleSensorReport with value '$sensorValue' and zwave cmd '$deviceEvent'"
-	configureMainAttr()
-
-	def currentSensorAttrValue = device.currentValue(MAIN_ATTR.NAME)
-	def newSensorAttrValue = MAIN_ATTR.STATEMAP[sensorValue]
-
-	// bail if we've handled an identical sensor report in the past 2 seconds
-	if (filterRepeats('lastSensorReport') && currentSensorAttrValue == newSensorAttrValue)
-	{
-		smartlog.trace "discarding duplicate report within 2 seconds: $deviceEvent"
-		return null
-	}
-
 	def cq = CommandQueue()
-	//String sensorType = getAttributeSensorType()
-	String commandName = getZwaveCommandName(deviceEvent)
-
-	Map sensorEvent = [:]
-	if (MAIN_ATTR.SENSOR_TYPE != UNKNOWN.SENSOR_TYPE)
+	if (state?.commandClassIds == null)
 	{
-		sensorEvent.name = MAIN_ATTR.NAME
-		sensorEvent.value = newSensorAttrValue
-		sensorEvent.description = deviceEvent as String
-		sensorEvent.descriptionText = "${device.displayName}: $MAIN_ATTR.LABEL is $sensorEvent.value (via $commandName)"
-
-		if (currentSensorAttrValue != sensorEvent.value)
-		{
-			smartlog.debug "device attribute $sensorEvent.name has changed from '$currentSensorAttrValue' to '$newSensorAttrValue'"
-			sensorEvent.isStateChange = true
-			sensorEvent.displayed = true
-		}
-		cq.add sensorEvent
+		state.commandClassIds = []
+		state.commandClassIds.addAll(CMD_CLASS_VERSIONS.keySet())
+	}
+	if (state.commandClassIds.size() > 0)
+	{
+		String ccId = state.commandClassIds.remove(0)
+		cq.add ccVersionCommandClassGet(Short.valueOf(ccId))
 	}
 	return cq
 }
 
+Boolean isCommandClassVersionChainComplete()
+{
+	if (state?.commandClassIds != null && state.commandClassIds.size() == 0) return true
+	return false
+}
 
 // -----
 // CommandClass commands, event handlers and helper methods
 //
 
-// REGION BEGIN - ORIGIN cc_wakeup_snip.groovy region v2
-/**
-* Z-wave event handler overload for WakeUpNotification v2
-* This is how the device tells us it has awoken and is ready to receive and respond to commands
-* @param  deviceEvent parsed z-wave event WakeUpNotification subclass
-* @return             CommandQueue
- */
-def zwaveEvent(physicalgraph.zwave.commands.wakeupv2.WakeUpNotification deviceEvent) {
-	smartlog.trace("handling WakeUpNotification '$deviceEvent'")
-	Long period = now()
-	def cq = CommandQueue()
-	sendEvent([name: "wakeup-$period", value: 'wakeUpNotification', isStateChange: true, description: deviceEvent as String, descriptionText: "${device.displayName} woke up.", displayed: false])
+// // CommandClass WakeUp
+// REGION BEGIN - ORIGIN cc_wakeup_snip.groovy main region
 
-	cq.add(macroWakeUpRitual())
-	return cq
-}
+// REGION END - ORIGIN cc_wakeup_snip.groovy main region
 
-/**
- * 0x8404
- * Sets the device wakeup interval
- * Min and max will depend on device
- * Sleepy devices will only receive this command when they are awake
- * @param  seconds Number of seconds between wakeups
- * @return         formatted Z-wave command, ready to send to device
- */
-def ccWakeUpIntervalSet(Integer seconds)
+
+def macroWakeUpRitual()
 {
-	smartlog.trace(CCC, 'issuing WakeUpIntervalSet')
-	if (!seconds || seconds < MIN_WAKE_UP_INTERVAL_SEC) seconds = state?.wakeup?.minSeconds?:MIN_WAKE_UP_INTERVAL_SEC
-	if (seconds > MAX_WAKE_UP_INTERVAL_SEC) seconds = state?.wakeup?.maxSeconds?:MAX_WAKE_UP_INTERVAL_SEC
-	GString logMsg = "WakeUpIntervalSet to $seconds seconds"
-	if (state?.wakeup?.overrideSeconds)
+	//if (!state?.ccVersions) state.ccVersions = [:]
+	def cq = CommandQueue()
+
+	// check if we need to clear/init tamper attribute
+	if (!state?.firstWakeInitComplete)
 	{
-		logMsg += ' (override wakeup interval found in state - using its value)'
-		seconds = state?.wakeup?.overrideSeconds as Integer
+		clearTamper(TAMPER.FALSE_INIT)
+		state.firstWakeInitComplete = true
 	}
-	smartlog.info(CCC, logMsg as String)
-	return zwave.wakeUpV2.wakeUpIntervalSet(nodeid: zwaveHubNodeId as Short, seconds: seconds)
-}
 
-/**
- * 0x8405
- * Requests the current wkeup interval from the deviceAttrName
- * Device will only receive and respond to this command when it is awake
- * @return formatted Z-wave command, ready to send to device
- */
-def ccWakeUpIntervalGet()
-{
-	smartlog.trace(CCC, 'issuing WakeUpIntervalGet')
-	return zwave.wakeUpV2.wakeUpIntervalGet()
-}
+	if (!isDeviceMetadataChainComplete())
+	{
+		smartlog.info "running metadata command chain for ${device.displayName}"
+		cq.add(chainDeviceMetadata(true))
+	}
+	// else if (!isCommandClassVersionChainComplete())
+	// {
+	// 	smartlog.info "running command class version command chain for ${device.displayName}"
+	// 	cq.add(chainVersionCommandClassChecks())
+	// }
+	else
+	{
+		smartlog.info "compiling standard WakeUp ritual for ${device.displayName}"
+		taskCheckTamperState()
+		cq.add(taskGetTemperature())
+		cq.add(taskGetWakeupInterval())
+		cq.add(taskSetMotionTimeout())
+		cq.add(taskGetAssociation())
+		cq.add(taskGetBattery())
+		cq.add(macroSendToSleep())
+	}
 
-/**
- * Z-wave event handler overload for WakeUpIntervalReport v2
- * @param  deviceEvent parsed z-wave event WakeUpIntervalReport subclass
- * @return             CommandQueue
- */
-def zwaveEvent(physicalgraph.zwave.commands.wakeupv2.WakeUpIntervalReport deviceEvent)
-{
-	smartlog.trace("handling WakeUpIntervalReport '$deviceEvent'")
-	def cq = CommandQueue()
-	Integer intervalSeconds = deviceEvent.seconds
-	Short nodeid = deviceEvent.nodeid
-	if (!state?.cfg) state.cfg = [:]
-	state.cfg.wakeupSeconds = intervalSeconds
-	String msg = "Device ${device.displayName} reports a wake up interval of $intervalSeconds for node $nodeid"
-	smartlog.info msg
-	Map evtMap = [name: 'wakeInterval', value: intervalSeconds, unit: 'seconds', description: deviceEvent as String, descriptionText: msg, displayed: true]
-	cq.add evtMap
 	return cq
 }
 
-/**
- * Requests Wakeup Interval Capabilities
- * @return zwave command
- */
-def ccWakeUpIntervalCapabilitiesGet()
+def macroSendToSleep()
 {
-	// 0x8409
-	smartlog.trace(CCC, 'issuing WakeUpIntervalCapabilitiesGet')
-	return zwave.wakeUpV2.wakeUpIntervalCapabilitiesGet()
-}
-
-/**
- * handles wakeupv2.WakeUpIntervalCapabilitiesReport. Member of the deviceMetadata chain gang
- * @param  deviceEvent zwave device event from zwave.parse method
- * @return			 CommandQueue Map
- */
-def zwaveEvent(physicalgraph.zwave.commands.wakeupv2.WakeUpIntervalCapabilitiesReport deviceEvent)
-{
-	smartlog.trace(ZWEH, "handling WakeUpIntervalCapabilitiesReport '$deviceEvent'")
-	state.deviceMeta.wakeup = [:]
-	state.deviceMeta.wakeup.defaultSeconds = deviceEvent.defaultWakeUpIntervalSeconds
-	state.deviceMeta.wakeup.maxSeconds = deviceEvent.maximumWakeUpIntervalSeconds
-	state.deviceMeta.wakeup.minSeconds = deviceEvent.minimumWakeUpIntervalSeconds
-	state.deviceMeta.wakeup.stepSeconds = deviceEvent.wakeUpIntervalStepSeconds
-	String msg = "Device ${device.displayName} reports these wakeup interval capabilities: default ${state.deviceMeta.wakeup.defaultSeconds}s; min ${state.deviceMeta.wakeup.minSeconds}s; max ${state.deviceMeta.wakeup.maxSeconds}s; step ${state.deviceMeta.wakeup.stepSeconds}s"
-	smartlog.info(ZWEH, msg)
-	Map evtMap = [name: 'wakeupCapabilities', value: '', unit: 'seconds', description: deviceEvent as String, descriptionText: msg, displayed: true]
 	def cq = CommandQueue()
-	cq.add(evtMap)
-	cq.add(chainDeviceMetadata())
+	cq.add('delay 10000')
+	Command wakeupNMICmd = ccWakeUpNoMoreInformation()
+	String nmiMsg = "no more information for ${device.displayName}. sending it back to sleep"
+	smartlog.debug(ZWEH, nmiMsg)
+	cq.add(wakeupNMICmd)
+	sendLoggedEvent([name: "wakeup-$wakeUpPeriod", value: 'noMoreInformation', description: wakeupNMICmd.format(), descriptionText: nmiMsg, displayed: false])
 	return cq
 }
 
-/**
- * 0x8408
- * Tells device that we have no more commands to send it, and that it should sleep when it
- * finishes all pending action
- * Device will only receive and respond to this command when it is awake
- * @return formatted Z-wave command, ready to send to device
- */
-def ccWakeUpNoMoreInformation()
+def macroSetGetWakeUpInterval(Integer seconds)
 {
-	// 0x8408
-	smartlog.trace(CCC, 'issuing WakeUpNoMoreInformation')
-	return zwave.wakeUpV2.wakeUpNoMoreInformation()
+	smartlog.trace('macroSetGetWakeUpInterval')
+	def cq = CommandQueue()
+	cq.add(ccWakeUpIntervalSet(seconds), DEFAULT_INTERCMD_DELAY_MSEC * 2)
+	cq.add(ccWakeUpIntervalGet())
+	return cq
 }
-// REGION END - ORIGIN cc_wakeup_snip.groovy region v2
+
 
 // // CommandClass Association v2
 def ccAssociationSet()
 {
 	// 0x8501
-	smartlog.trace(CCC, "setting ${device.displayName} association to group id $ASSOCIATION_GROUP_ID for nodeId $zwaveHubNodeId")
-	return zwave.associationV2.associationSet(groupingIdentifier:ASSOCIATION_GROUP_ID, nodeId:zwaveHubNodeId)
+	smartlog.trace(CCC, "setting ${device.displayName} association to group id $ASSOCIATION_GROUP_ID for nodeid $zwaveHubNodeId")
+	return zwave.associationV1.associationSet(groupingIdentifier:ASSOCIATION_GROUP_ID, nodeId:zwaveHubNodeId)
 }
 
 def ccAssociationRemove()
 {
 	// 0x8504
-	smartlog.fine(CCC, "removing ${device.displayName} association to group id $ASSOCIATION_GROUP_ID for nodeId $zwaveHubNodeId")
+	smartlog.fine(CCC, "removing ${device.displayName} association to group id $ASSOCIATION_GROUP_ID for nodeid $zwaveHubNodeId")
 	state.associationNodeId = null // appropriate?
-	return zwave.associationV2.associationRemove(groupingIdentifier:ASSOCIATION_GROUP_ID, nodeId:zwaveHubNodeId)
+	return zwave.associationV1.associationRemove(groupingIdentifier:ASSOCIATION_GROUP_ID, nodeId:zwaveHubNodeId)
 }
 
 def ccAssociationGet()
 {
 	// 0x8502
 	smartlog.fine(CCC, "getting ${device.displayName} association for group id $ASSOCIATION_GROUP_ID")
-	return zwave.associationV2.associationGet(groupingIdentifier: ASSOCIATION_GROUP_ID)
+	return zwave.associationV1.associationGet(groupingIdentifier: ASSOCIATION_GROUP_ID)
 }
 
 def zwaveEvent(physicalgraph.zwave.commands.associationv2.AssociationReport deviceEvent)
@@ -1052,29 +933,90 @@ def zwaveEvent(physicalgraph.zwave.commands.sensorbinaryv1.SensorBinaryReport de
 	smartlog.fine(ZWEH, "handling SensorBinaryReport '$deviceEvent'")
 	def cq = CommandQueue()
 	taskCheckTamperState()
+	String sensorHexValue = formatOctetAsHex(deviceEvent.sensorValue)
 
-	Boolean sensorValue = false
+
+	Map evtMap = [:]
+	evtMap.name = MAIN_ATTR.NAME
+	evtMap.description = deviceEvent as String
+
 	if (deviceEvent.sensorValue == physicalgraph.zwave.commands.sensorbinaryv1.SensorBinaryReport.SENSOR_VALUE_DETECTED_AN_EVENT)
 	{
-		sensorValue = true
+		evtMap.value = MAIN_ATTR.TRUE
+		evtMap.descriptionText = "${device.displayName}: $MAIN_ATTR.LABEL detected (via SensorBinary)"
 	}
-
-	cq.add handleSensorReport(sensorValue, deviceEvent)
+	else
+	{
+		evtMap.value = MAIN_ATTR.FALSE
+		evtMap.descriptionText = "${device.displayName}: $MAIN_ATTR.LABEL has passed (via SensorBinary)"
+	}
+	smartlog.info evtMap.descriptionText
+	evtMap.displayed = false // hide potentially duplicitive events
+	cq.add(evtMap)
 	return cq
 }
+
 
 // // CommandClass Basic
 def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicSet deviceEvent)
 {
 	smartlog.fine(ZWEH, "handling BasicSet '$deviceEvent'")
 	def cq = CommandQueue()
-
-	Boolean sensorValue = false
-	if (deviceEvent.value == ZWAVE_TRUE)
+	String deviceAttrValue = MAIN_ATTR.FALSE
+	String msg = "${device.displayName}: $MAIN_ATTR.LABEL has passed (via Basic)"
+	if (deviceEvent.value)
 	{
-		sensorValue = true
+		deviceAttrValue = MAIN_ATTR.TRUE
+		msg = msg.replaceAll('has passed', 'detected')
 	}
-	cq.add handleSensorReport(sensorValue, deviceEvent)
+	smartlog.info msg
+	Map evtMap = [:]
+	evtMap.name = MAIN_ATTR.NAME
+	evtMap.description = deviceEvent as String
+	evtMap.value = deviceAttrValue
+	evtMap.descriptionText = msg
+	evtMap.displayed = true
+	cq.add evtMap
+	return cq
+}
+
+
+// // Command Class SensorMultilevel
+def ccSensorMultilevelGet()
+{
+	smartlog.trace('issuing SensorMultilevelGet')
+	return zwave.sensorMultilevelV4.sensorMultilevelGet()
+}
+
+def zwaveEvent(physicalgraph.zwave.commands.sensormultilevelv4.SensorMultilevelReport deviceEvent)
+{
+	smartlog.trace("handling SensorMultilevelReport '$deviceEvent'")
+	def cq = CommandQueue()
+	Map evtMap = [description: deviceEvent as String]
+	if (deviceEvent.sensorType == physicalgraph.zwave.commands.sensormultilevelv4.SensorMultilevelReport.SENSOR_TYPE_TEMPERATURE_VERSION_1)
+	{
+		evtMap.name = TEMPERATURE.NAME
+		// If the sensor returns the temperature value in degrees centigrade,
+		// convert to degrees Fahrenheit. Also, apply a basic low-pass filter
+		// to the scaled sensor value input.
+		def scaledSensorValue = (deviceEvent.scaledSensorValue instanceof List) ? deviceEvent.scaledSensorValue[0] : deviceEvent.scaledSensorValue
+		//Integer filteredSensorValue = filterSensorValue(scaledSensorValue as Integer)
+		Integer filteredSensorValue = filterLowPass(TEMPERATURE.NAME, TEMP_SENSOR_FILTER_HISTORY_SIZE, scaledSensorValue as Integer)
+		if (deviceEvent.scale == 1)
+		{
+			evtMap.value = filteredSensorValue as String
+			evtMap.unit = "F"
+		}
+		else
+		{
+			evtMap.value = convertCelsiusToFahrenheit(filteredSensorValue) as String
+			evtMap.unit = "F"
+		}
+		String msg = "${device.displayName} reports temperature as $scaledSensorValue scale ${deviceEvent.scale}. Filtered value is $filteredSensorValue. Return temperature value is ${evtMap.value} ${evtMap.unit}."
+		smartlog.info msg
+		evtMap.descriptionText = msg
+	}
+	cq.add evtMap
 	return cq
 }
 
@@ -1092,57 +1034,78 @@ def zwaveEvent(physicalgraph.zwave.commands.batteryv1.BatteryReport deviceEvent)
 {
 	smartlog.fine(ZWEH, "handling BatteryReport '$deviceEvent'")
 	def cq = CommandQueue()
-	Integer batteryLevel = deviceEvent.batteryLevel // this device returns level as %
+	Integer batteryLevel = deviceEvent.batteryLevel
 	state.batteryLastUpdateTime = now()
 	String batteryMessage = "battery level is reported as $batteryLevel"
-	Map evtMap = [ name: "battery_raw", value: batteryLevel, unit: "%" , displayed: false, description: deviceEvent as String, descriptionText: batteryMessage]
-	smartlog.info batteryMessage
-	Integer batteryLevelAsPercent
+	Map evtMap = [ name: BATTERY.NAME, value: batteryLevel, unit: "%" , displayed: true, description: deviceEvent as String, descriptionText: message]
+	log.info batteryMessage
 	if (batteryLevel == 0xFF || batteryLevel == 0 )
 	{
-		batteryLevelAsPercent = 1
+		evtMap.value = 1
+		evtMap.descriptionText = "${device.displayName}: battery is almost dead!"
 	}
-	cq.add batteryReportAction(batteryLevelAsPercent, deviceEvent as String)
+	else if (batteryLevel < 15 )
+	{
+		evtMap.descriptionText = "${device.displayName}: battery is low!"
+	}
+	cq.add evtMap
 	return cq
 }
 
-/**
-	Reusable action to normaliza battery event handling between devices
- */
-def Map batteryReportAction(Integer batteryPercent, String deviceEventString)
-{
-	Map batteryEvent = [name: "battery", value: batteryPercent, unit: "%" , displayed: true, description: deviceEventString]
-	// handle bad values
-	if (batteryPercent > 100)
-	{
-		smartlog.warn(RA, "batteryPercent was reported as ${batteryPercent} but maximum is 100 - setting value to 100")
-		batteryPercent = 100
-	}
-	else if (batteryPercent < 0)
-	{
-		smartlog.warn(RA, "batteryPercent was reported as ${batteryPercent} but minimum is 0 - setting value to 0")
-		batteryPercent = 0
-	}
 
-	// set the description text accordingly
-	if (batteryPercent <= PCT_BATT_CRIT)
-	{
-		batteryEvent.value = 1
-		batteryEvent.descriptionText = "${device.displayName}: battery is almost dead! (${batteryPercent}%)"
-	}
-	else if (batteryPercent <= PCT_BATT_LOW)
-	{
-		batteryEvent.descriptionText = "${device.displayName}: battery is low! (${batteryPercent}%)"
-	}
-	else
-	{
-		batteryEvent.descriptionText = "${device.displayName}: battery is at ${batteryPercent}%"
-	}
-	smartlog.info(RA, batteryEvent.descriptionText)
-	return batteryEvent
+// // Command Class Configuration
+def macroConfigureMotionTimeout(Integer minutes)
+{
+	Short parameterNumber = 1
+	def cq = CommandQueue()
+	if (!minutes || minutes < 0) minutes = 1
+	if (minutes > MAX_MOTION_TIMEOUT_MIN) minutes = MAX_MOTION_TIMEOUT_MIN
+	Command setCmd = ccConfigurationSet(parameterNumber, [minutes], 1 as Short)
+	Command getCmd = ccConfigurationGet(parameterNumber)
+	cq.add([ name: 'command', value:'', description: setCmd.format(), descriptionText: "set config value for motion timeout config parameter ($parameterNumber) of $minutes min."])
+	cq.add(setCmd, 2000)
+	cq.add([ name: 'command', value:'', description: getCmd.format(), descriptionText: "getting value of motion timeout config parameter ($parameterNumber)."])
+	cq.add getCmd
+	return cq
 }
 
+def ccConfigurationSet(Short parameterNumber, List configurationValue, Short size)
+{
+	smartlog.trace("issuing ConfigurationSet for parameter $parameterNumber to value $configurationValue")
+	return zwave.configurationV1.configurationSet(
+		parameterNumber: parameterNumber,
+		configurationValue: configurationValue,
+		size: size)
+}
+
+def ccConfigurationGet(Integer parameterNumber)
+{
+	smartlog.trace("issuing ConfigurationGet for parameter ${parameterNumber}")
+	return zwave.configurationV1.configurationGet(parameterNumber: parameterNumber)
+}
+
+def zwaveEvent(physicalgraph.zwave.commands.configurationv1.ConfigurationReport deviceEvent)
+{
+	smartlog.trace("handling ConfigurationReport '$deviceEvent'")
+	def cq = CommandQueue()
+	Integer parameterNumber = deviceEvent.parameterNumber
+	Integer configurationValue = deviceEvent.configurationValue[0]
+	Map evtMap = [name: "config${parameterNumber}", value: configurationValue, description: deviceEvent as String]
+	if (state?.cfg == null) state.cfg = [:]
+	if (parameterNumber == 1) // motionTimeout
+	{
+		state.cfg.motionTimeout = configurationValue
+		evtMap.name = 'motionTimeout'
+		evtMap.descriptionText = "Motion timeout is $configurationValue minutes (config parameter $parameterNumber)"
+		evtMap.unit = 'minutes'
+	}
+	cq.add evtMap
+	return cq
+}
+
+
 // // CommandClass Version
+
 def ccVersionGet()
 {
 	smartlog.fine(CCC, 'issuing VersionGet')
@@ -1155,9 +1118,8 @@ def zwaveEvent(physicalgraph.zwave.commands.versionv1.VersionReport deviceEvent)
 	smartlog.fine(ZWEH, 'handling event versionv1.VersionReport')
 	def fw = "${deviceEvent.applicationVersion}.${deviceEvent.applicationSubVersion}"
 	updateDataValue("fw", fw)
-	def versionReportText = "$device.displayName: application version: ${deviceEvent.applicationVersion}, Z-Wave firmware version: ${deviceEvent.applicationSubVersion}, Z-Wave lib type: ${deviceEvent.zWaveLibraryType}, Z-Wave version: ${deviceEvent.zWaveProtocolVersion}.${deviceEvent.zWaveProtocolSubVersion}"
+	def text = "$device.displayName: application version: ${deviceEvent.applicationVersion}, Z-Wave firmware version: ${deviceEvent.applicationSubVersion}, Z-Wave lib type: ${deviceEvent.zWaveLibraryType}, Z-Wave version: ${deviceEvent.zWaveProtocolVersion}.${deviceEvent.zWaveProtocolSubVersion}"
 
-	initDeviceMetadata()
 	state.deviceMeta.version = [:]
 	state.deviceMeta.version.application = deviceEvent.applicationVersion
 	state.deviceMeta.version.zwaveFirmware = deviceEvent.applicationSubVersion
@@ -1165,24 +1127,35 @@ def zwaveEvent(physicalgraph.zwave.commands.versionv1.VersionReport deviceEvent)
 	state.deviceMeta.version.zwaveProtocol = deviceEvent.zWaveProtocolVersion
 	state.deviceMeta.version.zwaveProtocolSub = deviceEvent.zWaveProtocolSubVersion
 
-	smartlog.info "VersionReport: $versionReportText"
-	sendLoggedEvent(name: 'version', value: fw, description: deviceEvent as String, descriptionText: versionReportText, displayed: true)
+	smartlog.info text
+	sendLoggedEvent(name: 'version', value: '', description: deviceEvent as String, descriptionText: text, displayed: true)
 	cq.add(chainDeviceMetadata())
 	return cq
 }
 
+def ccVersionCommandClassGet(Short ccId)
+{
+	smartlog.debug(CCC, "ccVersionCommandClassGet ${formatOctetAsHex(ccId as Short)} ($ccId)")
+	def cmd = zwave.versionV1.versionCommandClassGet(requestedCommandClass: ccId)
+	return cmd
+}
 
-// REGION BEGIN - ORIGIN cc_manufacturer_specific_snip.groovy region v1
-/*
- * Command Class Manufacturer Specific v1
- * 0x72
- */
+def zwaveEvent(physicalgraph.zwave.commands.versionv1.VersionCommandClassReport deviceEvent)
+{
+	Map cq = CommandQueue()
+	smartlog.fine(ZWEH, "handling event versionv1.VersionCommandClassReport: $deviceEvent")
+	String ccIdHex = formatOctetAsHex(deviceEvent.requestedCommandClass as Short)
+	if (state?.ccVersions == null) state.ccVersions = [:]
+	state.ccVersions.put(ccIdHex, deviceEvent.commandClassVersion as Integer)
 
-/**
- * Generates the manufacturer Specific Get command
- * 0x7204
- * @return Z-wave command object for Manufacturer Specific Get V1
- */
+	smartlog.info "CommandClass $ccIdHex, Version ${deviceEvent.commandClassVersion}"
+	sendLoggedEvent(name: "cc${ccIdHex}_v", value: deviceEvent.commandClassVersion, displayed: true)
+	cq.add(chainVersionCommandClassChecks())
+	return cq
+}
+
+// // CommandClass Manufacturer Specific v1
+
 def ccManufacturerSpecificGet()
 {
 	smartlog.fine(CCC, 'issuing ccManufacturerSpecificGet')
@@ -1190,171 +1163,79 @@ def ccManufacturerSpecificGet()
 	return cmd
 }
 
-/**
- * Handles a Manufacturer Specific Report device event
- * @param  deviceEvent the device event parsed by the SmartThings z-wave utility parse command
- * @event  sends an msr event with the Manufacturer, Product Type and Product IDs
- * @state  sets the msr data under the deviceMeta.msr keys in state
- */
 def zwaveEvent(physicalgraph.zwave.commands.manufacturerspecificv1.ManufacturerSpecificReport deviceEvent)
 {
 	smartlog.fine(ZWEH, 'handling event manufacturerspecificv1.ManufacturerSpecificReport')
+	def msr = String.format("%04X-%04X-%04X", deviceEvent.manufacturerId, deviceEvent.productTypeId, deviceEvent.productId)
+	updateDataValue("MSR", msr)
 
-	storeMsr(deviceEvent)
+	state.deviceMeta.msr = [msr: "$msr"]
+	state.deviceMeta.msr.manufacturerId = deviceEvent.manufacturerId
+	state.deviceMeta.msr.productTypeId = deviceEvent.productTypeId
+	state.deviceMeta.msr.productId = deviceEvent.productId
 
-	String msr = msrGetMsr()
-	String niceMsr = "${device.displayName} MSR: $msr; Manufacturer: ${msrGetManufacturerId()}; Product Type: ${msrGetProductTypeId()}; Product: ${msrGetProductId()}"
+	String niceMsr = "$device.displayName MSR: $msr; Manufacturer: $state.deviceMeta.msr.manufacturerId; Product Type: $state.deviceMeta.msr.productTypeId; Product: $state.deviceMeta.msr.productId"
 
 	smartlog.info niceMsr
 	sendLoggedEvent([name: 'msr', value: msr, description: state.deviceMeta.msr.toString(), description: deviceEvent as String, descriptionText: niceMsr, displayed: true])
+	def cq = CommandQueue()
+	cq.add(chainDeviceMetadata())
+	return cq
 }
 
-def storeMsr(physicalgraph.zwave.commands.manufacturerspecificv1.ManufacturerSpecificReport msrEvent)
-{
-	def msr = String.format("%04X-%04X-%04X", msrEvent.manufacturerId, msrEvent.productTypeId, msrEvent.productId)
-	updateDataValue("MSR", msr)
-	if (state?.deviceMeta == null) state.deviceMeta = [:]
-	state.deviceMeta.msr = [msr: "$msr"]
-	state.deviceMeta.msr.manufacturerId = msrEvent.manufacturerId
-	state.deviceMeta.msr.productTypeId = msrEvent.productTypeId
-	state.deviceMeta.msr.productId = msrEvent.productId
-}
 
-String msrGetMsr()
-{
-	String result = state?.deviceMeta?.msr?.msr
-	smartlog.fine "msrGetMsr: returning stored MSR: $result"
-	return result
-}
+// // Command Class Alarm
 
-String msrGetManufacturerId()
-{
-	String result = state?.deviceMeta?.msr?.manufacturerId
-	smartlog.fine "msrGetMsr: returning stored Manufacturer ID: $result"
-	return state?.deviceMeta?.msr?.manufacturerId
-}
-
-String msrGetProductTypeId()
-{
-	String result = state?.deviceMeta?.msr?.productTypeId
-	smartlog.fine "msrGetMsr: returning stored Product Type ID: $result"
-	return state?.deviceMeta?.msr?.productTypeId
-}
-
-String msrGetProductId()
-{
-	String result = state?.deviceMeta?.msr?.productId
-	smartlog.fine "msrGetMsr: returning stored Product ID: $result"
-	return state?.deviceMeta?.msr?.productId
-}
-// REGION END - ORIGIN cc_manufacturer_specific_snip.groovy region v1
-
-
-// CommandClass Alarm
 def zwaveEvent(physicalgraph.zwave.commands.alarmv2.AlarmReport deviceEvent)
 {
 	smartlog.fine(ZWEH, "handling AlarmReport '$deviceEvent'")
 	def cq = CommandQueue()
 	String alarmMsg = "${device.displayName}: Alarm Type ${deviceEvent.zwaveAlarmType}; Event ${deviceEvent.zwaveAlarmEvent}; Status ${deviceEvent.zwaveAlarmStatus};   (V1 info Type:${deviceEvent.alarmType}; Level:${deviceEvent.alarmLevel})"
 
+	Map evtMap = [name: "alarm${deviceEvent.zwaveAlarmType}", value: "v2event ${deviceEvent.zwaveAlarmEvent}, v2status ${deviceEvent.zwaveAlarmStatus}, v1level ${deviceEvent.alarmLevel}", description: deviceEvent as String]
 	smartlog.debug alarmMsg
 	switch (deviceEvent)
 	{
 		case {it.zwaveAlarmType == 7 && it.zwaveAlarmEvent == 2 && it.alarmLevel == ZWAVE_TRUE}:
-			// this is the alarm for the sensor detecting something
-			cq.add handleSensorReport(true, deviceEvent)
+			// this is the alarm for motion detected
+			evtMap.name = MAIN_ATTR.NAME
+			evtMap.value = MAIN_ATTR.TRUE
+			alarmMsg = "${device.displayName}: $MAIN_ATTR.LABEL detected (via Alarm)"
 			break
 		case {it.zwaveAlarmType == 7 && it.zwaveAlarmEvent == 2 && it.alarmLevel == ZWAVE_FALSE}:
 			// this is the alarm for motion ceased
-			cq.add handleSensorReport(false, deviceEvent)
+			evtMap.name = MAIN_ATTR.NAME
+			evtMap.value = MAIN_ATTR.FALSE
+			alarmMsg = "${device.displayName}: $MAIN_ATTR.LABEL has ceased (via Alarm)"
 			break
 		case {it.zwaveAlarmType == 7 && it.zwaveAlarmEvent == 3}:
 			// this is the alarm for tamper - There seems to be no cleared alarm for this
-			Map tamperEvt = [name: TAMPER.NAME, value: TAMPER.TRUE]
-			tamperEvt.displayed = true
-			tamperEvt.description = deviceEvent as String
-			tamperEvt.descriptionText = "${device.displayName}: sensor cover has been opened"
-			smartlog.info tamperEvt.descriptionText
-			cq.add tamperEvt
+			evtMap.name = TAMPER.NAME
+			evtMap.value = TAMPER.TRUE
+			evtMap.displayed = true
+			alarmMsg = "${device.displayName}: sensor cover has been opened"
 			break
 		default:
-			Map defaultEvt = [name: "alarm${deviceEvent.zwaveAlarmType}"]
-			defaultEvt.value =  "v2event ${deviceEvent.zwaveAlarmEvent}, v2status ${deviceEvent.zwaveAlarmStatus}, v1level ${deviceEvent.alarmLevel}"
-			defaultEvt.description = deviceEvent as String
-			defaultEvt.descriptionText = alarmMsg
-			defaultEvt.displayed = true
-			cq.add defaultEvt
+			evtMap.displayed = true
 	}
+	evtMap.descriptionText = alarmMsg
+	smartlog.info alarmMsg
+	cq.add evtMap
 	return cq
 }
 
-def ccAlarmTypeSupportedGet()
-{
-	smartlog.fine(CCC, ' issuing AlarmTypeSupportedGet')
-	return zwave.alarmV2.alarmTypeSupportedGet()
-}
 
-def zwaveEvent(physicalgraph.zwave.commands.alarmv2.AlarmTypeSupportedReport deviceEvent)
-{
-	smartlog.fine(ZWEH, "handling AlarmTypeSupportedReport '$deviceEvent'")
-	smartlog.info("AlarmTypeSupportedReport: '$deviceEvent'")
-}
-
-
-// REGION BEGIN - ORIGIN cc_generic_command_snip.groovy main region
-//
-private String extractCommandId(physicalgraph.zwave.Command deviceEvent)
-{
-	String command
-	try
-	{
-		Byte[] commandBytes = []
-		commandBytes.add deviceEvent?.commandClass as Byte
-		commandBytes.add deviceEvent?.command as Byte
-		command = formatAsHex(commandBytes)
-	}
-	catch (exc)
-	{
-		command = 'could not format command class + id as hex. see description for raw value'
-	}
-	return command
-}
-
-/**
- * override method for a channeled zwave event
- * @param  deviceEvent	zwave command/event parent class Command
- * @param  endpoint		the endpoint this command was destined for
- * @return              CommandQueue instance of events and commands in response to this event
- */
-def channeledZwaveEvent(physicalgraph.zwave.Command deviceEvent, Integer endpoint)
-{
-	String message = "Unhandled device event: ${deviceEvent} for endpoint ${endpoint}"
-	smartlog.warn message
-	String command = extractCommandId(deviceEvent)
-
-	def cq = CommandQueue()
-	cq.add([name: 'unhandled', value:command, description: deviceEvent as String, descriptionText: message, displayed: false])
-	return cq
-}
-
-/**
- * zwaveEvent override method
- * Catch-all handler for unknown/unexpected Z-wave events the device might send at us
- * @param  deviceEvent  zwave command/event parent class Command
- * @return              CommandQueue instance of events and commands in response to this event
- */
+// // Catch-all handler.for any unsupported zwave events the device might send at us
 def zwaveEvent(physicalgraph.zwave.Command deviceEvent)
 {
+	// Catch-all handler. The sensor does return some alarm values, which
+	// could be useful if handled correctly (tamper alarm, etc.)
 	String message = "Unhandled device event: ${deviceEvent}"
 	smartlog.warn message
-	String command = extractCommandId(deviceEvent)
-
 	def cq = CommandQueue()
-	cq.add([name: 'unhandled', value:command, description: deviceEvent as String, descriptionText: message, displayed: false])
+	cq.add([name: 'unhandled', value:'', description: deviceEvent as String, descriptionText: message, displayed: false])
 	return cq
 }
-// REGION END - ORIGIN cc_generic_command_snip.groovy main region
-
 
 /*
 	ClosureClasses down here.

@@ -679,7 +679,7 @@ Boolean isCommandClassVersionChainComplete()
 //
 
 // // CommandClass WakeUp
-// ADDIN TARGET cc_wakeup_v2_snip
+// ADDIN TARGET cc_wakeup_snip
 
 
 def macroWakeUpRitual()
@@ -1105,6 +1105,6 @@ def zwaveEvent(physicalgraph.zwave.Command deviceEvent)
 	ClosureClasses down here.
  */
 
-// ADDIN TARGET Smartlog_cc
+// ADDIN TARGET SmartLog_cc
 
 // ADDIN TARGET CommandQueue_cc
