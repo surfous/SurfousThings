@@ -13,7 +13,7 @@
  *   - Battery by Ahmed Elzahra from the Noun Project
  *
  *  Author: surfous
- *  Version: {{BUILDDATE}}
+ *  Date: {{BUILDDATE}}
  *  Build: {{BUILDTAG}}
  */
 import groovy.transform.Field
