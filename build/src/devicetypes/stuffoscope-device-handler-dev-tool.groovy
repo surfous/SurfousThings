@@ -38,7 +38,7 @@ import physicalgraph.zwave.Command
 
 metadata
 {
-	definition (name: "StuffOScope Device Handler Development Helper", namespace: "surfous", author: "surfous")
+	definition (name: "StuffOScope Device Handler Dev Tool", namespace: "surfous", author: "surfous")
 	{
 		capability "Configuration"
 		capability "Sensor"

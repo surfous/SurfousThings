@@ -35,7 +35,7 @@ import physicalgraph.zwave.Command
 // for the UI
 metadata
 {
-	definition (name: "Enerwave ZWN-RSM2 Smart Dual Relay Switch Module", namespace: "surfous", author: "Kevin Shuk") {
+	definition (name: "Enerwave ZWN-RSM2 Dual Relay Switch Module", namespace: "surfous", author: "Kevin Shuk") {
 		capability 'Actuator'
 		capability 'Switch'
 		capability 'Configuration'
