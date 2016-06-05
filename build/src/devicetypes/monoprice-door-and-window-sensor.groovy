@@ -770,28 +770,6 @@ def handleSensorReport(Boolean sensorValue, physicalgraph.zwave.Command deviceEv
 // ADDIN TARGET monoprice_snip wakeup_macros
 
 
-def macroSendToSleep()
-{
-	def cq = CommandQueue()
-	cq.add('delay 10000')
-	Command wakeupNMICmd = ccWakeUpNoMoreInformation()
-	String nmiMsg = "no more information for ${device.displayName}. sending it back to sleep"
-	smartlog.debug(ZWEH, nmiMsg)
-	cq.add(wakeupNMICmd)
-	sendLoggedEvent([name: "wakeup-$wakeUpPeriod", value: 'noMoreInformation', description: wakeupNMICmd.format(), descriptionText: nmiMsg, displayed: false])
-	return cq
-}
-
-def macroSetGetWakeUpInterval(Integer seconds)
-{
-	smartlog.trace('macroSetGetWakeUpInterval')
-	def cq = CommandQueue()
-	cq.add(ccWakeUpIntervalSet(seconds))
-	cq.add(ccWakeUpIntervalGet())
-	return cq
-}
-
-
 // // CommandClass Association v2
 def ccAssociationSet()
 {
