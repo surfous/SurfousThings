@@ -11,6 +11,7 @@
  *  	"Monoprice NO-LABEL Door & Window Sensor" handler from the "My Devices" tab.
  *
  *  Raw Description: 0 0 0x2001 0 0 0 7 0x71 0x85 0x80 0x72 0x30 0x86 0x84
+ *  Raw Description: zw:S type:2001 mfr:0109 prod:2001 model:0102 ver:4.84 zwv:3.52 lib:06 cc:71,85,80,72,30,86,84
  *
  * Door & Window Sensor:
  *  VersionReport: application version: 4, Z-Wave firmware version: 84, Z-Wave lib type: 6, Z-Wave version: 3.52
@@ -153,6 +154,8 @@ metadata
 
 		command clearTamperManually
 
+		fingerprint mfr:0109  prod;2001  model:0102  cc:71,85,80,72,30,86,84
+		// old-style fingerprint for V1 hub backwards compatibility
 		fingerprint deviceId: '0x2001', inClusters: '0x30, 0x71, 0x85, 0x80, 0x72, 0x86, 0x84'
 	}
 
@@ -337,10 +340,11 @@ void updated()
 	// bail if we've run updated() in the past 3 seconds
 	if (filterRepeats('lastUpdated')) return null
 
-	state.pref = [:]
-	state.pref.wakeupIntervalHrs = Integer.valueOf(settings?.wakeupIntervalHrs?:PREF_DEFAULT_WAKE_UP_INTERVAL_HR)
-	state.pref.wakeupDevFlag = Boolean.valueOf(settings?.wakeupDevFlag?:false)
-	state.pref.tamperClearAuto = Boolean.valueOf(settings?.tamperClearAuto?:PREF_DEFAULT_TAMPER_FALSE_ON_WAKE)
+	initpref = [:]
+	initpref.wakeupIntervalHrs = Integer.valueOf(settings?.wakeupIntervalHrs?:PREF_DEFAULT_WAKE_UP_INTERVAL_HR)
+	initpref.wakeupDevFlag = Boolean.valueOf(settings?.wakeupDevFlag?:false)
+	initpref.tamperClearAuto = Boolean.valueOf(settings?.tamperClearAuto?:PREF_DEFAULT_TAMPER_FALSE_ON_WAKE)
+	state.pref = initpref
 
 	smartlog.debug(DTI, "preferences recorded in state: ${state.pref}")
 }
@@ -638,9 +642,11 @@ String determineSensorType()
 	String sensorLabel = UNKNOWN.SENSOR_TYPE
 	if (state?.deviceMeta?.msr?.productTypeId != null)
 	{
-		String productTypeIdString = formatNumberAsHex(state?.deviceMeta?.msr?.productTypeId)
-		sensorLabel = DEVICE_PRODUCT_ID_DISAMBIGUATION[productTypeIdString]
+		def productTypeId = state?.deviceMeta?.msr?.productTypeId
+		smartlog.debug "product type id: $productTypeId"
+		String productTypeIdString = formatNumberAsHex(productTypeId)
 		smartlog.debug "product type id: $productTypeIdString"
+		sensorLabel = DEVICE_PRODUCT_ID_DISAMBIGUATION[productTypeIdString]
 		smartlog.debug "device handler product type id: ${CONTACT.PRODUCT_TYPE_ID}"
 		switch(productTypeIdString)
 		{
@@ -654,9 +660,9 @@ String determineSensorType()
 	}
 
 	smartlog.debug "determineSensorType has determined sensor to be of type '$sensorLabel' ($sensorType)"
-	if (sensorType == UNKNOWN.SENSOR_TYPE && sensorLabel != UNKNOWN.SENSOR_TYPE)
+	if (sensorType == UNKNOWN.SENSOR_TYPE && sensorLabel != UNKNOWN.SENSOR_LABEL)
 	{
-		smartlog.warn "Please set the device handler for this device to one written for a $sensorLabel in the IDE"
+		smartlog.warn "Please set the device handler for this device to one written for a $CONTACT.SENSOR_LABEL in the IDE"
 	}
 	else
 	{
