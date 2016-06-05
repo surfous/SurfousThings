@@ -19,7 +19,7 @@
  *
  *  Author: surfous
  *  Date: 2016-06-04
- *  Build: 20160605-052833.63207
+ *  Build: 20160605-061155.65041
  */
 
 import groovy.transform.Field
@@ -187,7 +187,7 @@ metadata
 
 		command clearTamperManually
 
-		fingerprint mfr:0109  prod;2001  model:0102  cc:71,85,80,72,30,86,84
+		fingerprint mfr: '0109',  prod: '2001'  model: '0102'  cc: '71,85,80,72,30,86,84'
 		// old-style fingerprint for V1 hub backwards compatibility
 		fingerprint deviceId: '0x2001', inClusters: '0x30, 0x71, 0x85, 0x80, 0x72, 0x86, 0x84'
 	}
