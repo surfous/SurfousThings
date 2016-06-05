@@ -17,8 +17,8 @@
  *  MSR: 0109-200A-0A02
  *
  *  Author: surfous
- *  Date: 2016-04-03
- *  Build: 20160404-042647.80451
+ *  Date: 2016-06-04
+ *  Build: 20160605-043629.57564
  */
 
 import groovy.transform.Field
@@ -995,6 +995,63 @@ def ccWakeUpNoMoreInformation()
 	return zwave.wakeUpV2.wakeUpNoMoreInformation()
 }
 // REGION END - ORIGIN cc_wakeup_snip.groovy region v2
+
+// REGION BEGIN - ORIGIN monoprice_snip.groovy region wakeup_macros
+def macroWakeUpRitual()
+{
+	smartlog.trace('macroWakeUpRitual')
+	//if (!state?.ccVersions) state.ccVersions = [:]
+	def cq = CommandQueue()
+
+	// check if we need to clear/init tamper attribute
+	if (!state?.firstWakeInitComplete)
+	{
+		clearTamper(TAMPER_CLEAR_INIT)
+		state.firstWakeInitComplete = true
+	}
+
+	if (!isDeviceMetadataChainComplete())
+	{
+		cq.add(chainDeviceMetadata(true))
+	}
+	else
+	{
+		smartlog.info "compiling standard WakeUp ritual for ${device.displayName}"
+		taskCheckTamperState()
+		//cq.add(taskGetCurrentSensorValue())
+		cq.add(taskGetWakeupInterval())
+		cq.add(taskGetAssociation())
+		cq.add(taskGetBattery())
+		cq.add(macroSendToSleep())
+	}
+
+	return cq
+}
+
+def macroSendToSleep()
+{
+	smartlog.trace('macroSendToSleep')
+	def cq = CommandQueue()
+	cq.add('delay 10000')
+	Command wakeupNMICmd = ccWakeUpNoMoreInformation()
+	String nmiMsg = "no more information for ${device.displayName}. sending it back to sleep"
+	smartlog.debug(ZWEH, nmiMsg)
+	cq.add(wakeupNMICmd)
+	sendLoggedEvent([name: "wakeup-$wakeUpPeriod", value: 'noMoreInformation', description: wakeupNMICmd.format(), descriptionText: nmiMsg, displayed: false])
+	return cq
+}
+
+def macroSetGetWakeUpInterval(Integer seconds)
+{
+	smartlog.trace('macroSetGetWakeUpInterval')
+	def cq = CommandQueue()
+	cq.add(ccWakeUpIntervalSet(seconds))
+	cq.add(ccWakeUpIntervalGet())
+	return cq
+}
+// REGION END - ORIGIN monoprice_snip.groovy region wakeup_macros
+
+
 
 // // CommandClass Association v2
 def ccAssociationSet()

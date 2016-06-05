@@ -746,6 +746,10 @@ def handleSensorReport(Boolean sensorValue, physicalgraph.zwave.Command deviceEv
 
 // ADDIN TARGET cc_wakeup_snip v2
 
+// ADDIN TARGET monoprice_snip wakeup_macros
+
+
+
 // // CommandClass Association v2
 def ccAssociationSet()
 {
