@@ -31,9 +31,9 @@ def macroWakeUpRitual()
 		smartlog.info "compiling standard WakeUp ritual for ${device.displayName}"
 		taskCheckTamperState()
 		//cq.add(taskGetCurrentSensorValue())
+		cq.add(taskGetBattery())
 		cq.add(taskGetWakeupInterval())
 		cq.add(taskGetAssociation())
-		cq.add(taskGetBattery())
 		cq.add(macroSendToSleep())
 	}
 

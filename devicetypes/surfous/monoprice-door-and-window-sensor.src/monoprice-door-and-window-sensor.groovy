@@ -19,7 +19,7 @@
  *
  *  Author: surfous
  *  Date: 2016-06-05
- *  Build: 20160605-075203.67678
+ *  Build: 20160605-080555.68528
  */
 
 import groovy.transform.Field
@@ -1017,8 +1017,10 @@ def ccWakeUpNoMoreInformation()
 }
 // REGION END - ORIGIN cc_wakeup_snip.groovy region v2
 
+// REGION BEGIN - ORIGIN monoprice_snip.groovy region wakeup_macros
 def macroWakeUpRitual()
 {
+	smartlog.trace('macroWakeUpRitual')
 	//if (!state?.ccVersions) state.ccVersions = [:]
 	def cq = CommandQueue()
 
@@ -1038,14 +1040,38 @@ def macroWakeUpRitual()
 		smartlog.info "compiling standard WakeUp ritual for ${device.displayName}"
 		taskCheckTamperState()
 		//cq.add(taskGetCurrentSensorValue())
+		cq.add(taskGetBattery())
 		cq.add(taskGetWakeupInterval())
 		cq.add(taskGetAssociation())
-		cq.add(taskGetBattery())
 		cq.add(macroSendToSleep())
 	}
 
 	return cq
 }
+
+def macroSendToSleep()
+{
+	smartlog.trace('macroSendToSleep')
+	def cq = CommandQueue()
+	cq.add('delay 10000')
+	Command wakeupNMICmd = ccWakeUpNoMoreInformation()
+	String nmiMsg = "no more information for ${device.displayName}. sending it back to sleep"
+	smartlog.debug(ZWEH, nmiMsg)
+	cq.add(wakeupNMICmd)
+	sendLoggedEvent([name: "wakeup-$wakeUpPeriod", value: 'noMoreInformation', description: wakeupNMICmd.format(), descriptionText: nmiMsg, displayed: false])
+	return cq
+}
+
+def macroSetGetWakeUpInterval(Integer seconds)
+{
+	smartlog.trace('macroSetGetWakeUpInterval')
+	def cq = CommandQueue()
+	cq.add(ccWakeUpIntervalSet(seconds))
+	cq.add(ccWakeUpIntervalGet())
+	return cq
+}
+// REGION END - ORIGIN monoprice_snip.groovy region wakeup_macros
+
 
 def macroSendToSleep()
 {

@@ -767,35 +767,8 @@ def handleSensorReport(Boolean sensorValue, physicalgraph.zwave.Command deviceEv
 
 // ADDIN TARGET cc_wakeup_snip v2
 
-def macroWakeUpRitual()
-{
-	//if (!state?.ccVersions) state.ccVersions = [:]
-	def cq = CommandQueue()
+// ADDIN TARGET monoprice_snip wakeup_macros
 
-	// check if we need to clear/init tamper attribute
-	if (!state?.firstWakeInitComplete)
-	{
-		clearTamper(TAMPER_CLEAR_INIT)
-		state.firstWakeInitComplete = true
-	}
-
-	if (!isDeviceMetadataChainComplete())
-	{
-		cq.add(chainDeviceMetadata(true))
-	}
-	else
-	{
-		smartlog.info "compiling standard WakeUp ritual for ${device.displayName}"
-		taskCheckTamperState()
-		//cq.add(taskGetCurrentSensorValue())
-		cq.add(taskGetWakeupInterval())
-		cq.add(taskGetAssociation())
-		cq.add(taskGetBattery())
-		cq.add(macroSendToSleep())
-	}
-
-	return cq
-}
 
 def macroSendToSleep()
 {
