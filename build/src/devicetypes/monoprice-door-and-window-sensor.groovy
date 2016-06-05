@@ -645,12 +645,13 @@ String determineSensorType()
 		def productTypeId = state?.deviceMeta?.msr?.productTypeId
 		smartlog.debug "product type id: $productTypeId"
 		String productTypeIdString = formatNumberAsHex(productTypeId)
-		smartlog.debug "product type id: $productTypeIdString"
+		smartlog.debug "product type id as hex str: $productTypeIdString"
 		sensorLabel = DEVICE_PRODUCT_ID_DISAMBIGUATION[productTypeIdString]
-		smartlog.debug "device handler product type id: ${CONTACT.PRODUCT_TYPE_ID}"
+		String deviceHandlerProductTypeIdString = formatNumberAsHex(CONTACT.PRODUCT_TYPE_ID)
+		smartlog.debug "device handler product type id: $deviceHandlerProductTypeIdString"
 		switch(productTypeIdString)
 		{
-			case formatNumberAsHex(CONTACT.PRODUCT_TYPE_ID):
+			case deviceHandlerProductTypeIdString:
 				sensorType = CONTACT.SENSOR_TYPE
 				break
 			default:

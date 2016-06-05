@@ -18,8 +18,8 @@
  *  MSR: 0109-2001-0102
  *
  *  Author: surfous
- *  Date: 2016-06-04
- *  Build: 20160605-061344.65742
+ *  Date: 2016-06-05
+ *  Build: 20160605-075203.67678
  */
 
 import groovy.transform.Field
@@ -777,12 +777,13 @@ String determineSensorType()
 		def productTypeId = state?.deviceMeta?.msr?.productTypeId
 		smartlog.debug "product type id: $productTypeId"
 		String productTypeIdString = formatNumberAsHex(productTypeId)
-		smartlog.debug "product type id: $productTypeIdString"
+		smartlog.debug "product type id as hex str: $productTypeIdString"
 		sensorLabel = DEVICE_PRODUCT_ID_DISAMBIGUATION[productTypeIdString]
-		smartlog.debug "device handler product type id: ${CONTACT.PRODUCT_TYPE_ID}"
+		String deviceHandlerProductTypeIdString = formatNumberAsHex(CONTACT.PRODUCT_TYPE_ID)
+		smartlog.debug "device handler product type id: $deviceHandlerProductTypeIdString"
 		switch(productTypeIdString)
 		{
-			case formatNumberAsHex(CONTACT.PRODUCT_TYPE_ID):
+			case deviceHandlerProductTypeIdString:
 				sensorType = CONTACT.SENSOR_TYPE
 				break
 			default:
