@@ -84,7 +84,7 @@ contact_attr_map.STATEMAP = [(true): contact_attr_map.TRUE, (false): contact_att
 
 @Field Map battery_attr_map = [:]
 battery_attr_map.NAME = 'battery'
-battery_attr_map.LABEL = battery_attr_map.NAME
+battery_attr_map.LABEL = 'battery'
 @Field final Map BATTERY = battery_attr_map
 
 @Field Map unknown_attr_map = [:]
@@ -144,9 +144,9 @@ metadata
 		capability 'Battery'
 		capability 'Contact Sensor'
 		capability 'Sensor'
+		capability 'Tamper Alert'
 
 		attribute 'sensorType', 'enum', [UNKNOWN_SENSOR_TYPE, 'contact']
-		attribute 'tamper', 'enum', ['open', 'closed']
 		attribute 'lastUpdated', 'number'
 		attribute 'lastSensorReport', 'number'
 		attribute 'msr', 'string'
@@ -389,7 +389,7 @@ private String formatNumberAsHex(Number num)
 private void clearTamper(String clearMethod)
 {
 	smartlog.fine "in clearTamper with arg '$clearMethod'"
-	smartlog.trace "current tamper attribute value is ${device.currentValue('tamper')}"
+	smartlog.trace "current tamper attribute value is ${device.currentValue(TAMPER.NAME)}"
 	if (device.currentValue(TAMPER.NAME) != TAMPER.FALSE)
 	{
 		Map evtMap = [name: TAMPER.NAME, value: TAMPER.FALSE, description: "tamper alert cleared $clearMethod", isStateChange: true, displayed: true]
@@ -870,22 +870,22 @@ def zwaveEvent(physicalgraph.zwave.commands.batteryv1.BatteryReport deviceEvent)
 	def cq = CommandQueue()
 	Integer batteryLevel = deviceEvent.batteryLevel
 	state.batteryLastUpdateTime = now()
-	String batteryMessage = "battery level is reported as $batteryLevel"
-	Map evtMap = [ name: "battery", value: batteryLevel, unit: "%" , displayed: true, description: deviceEvent as String, descriptionText: message]
+	String batteryMessage = "battery level is reported as $batteryLevel%"
+	Map evtMap = [ name: "battery", value: batteryLevel, unit: "%" , displayed: true, description: deviceEvent as String, descriptionText: batteryMessage]
 	log.info batteryMessage
 	if (batteryLevel == 0xFF)
 	{
 		evtMap.value = 1
-		evtMap.descriptionText = "${device.displayName}: battery is almost dead!"
+		evtMap.descriptionText = "battery is almost dead!"
 	}
 	else if ( batteryLevel <= nearDeadValue )
 	{
 		evtMap.value = 1
-		evtMap.descriptionText = "${device.displayName}: battery is almost dead!"
+		evtMap.descriptionText = "battery is almost dead!"
 	}
 	else if (batteryLevel < lowValue )
 	{
-		evtMap.descriptionText = "${device.displayName}: battery is low!"
+		evtMap.descriptionText = "battery is low!"
 	}
 	cq.add evtMap
 	return cq
@@ -923,7 +923,6 @@ def zwaveEvent(physicalgraph.zwave.commands.versionv1.VersionReport deviceEvent)
 
 
 // ADDIN TARGET cc_manufacturer_specific_snip v1
-
 
 // CommandClass Alarm
 def zwaveEvent(physicalgraph.zwave.commands.alarmv2.AlarmReport deviceEvent)
