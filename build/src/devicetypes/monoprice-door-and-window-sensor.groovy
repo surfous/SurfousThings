@@ -154,7 +154,7 @@ metadata
 
 		command clearTamperManually
 
-		fingerprint mfr: '0109',  prod: '2001'  model: '0102'  cc: '71,85,80,72,30,86,84'
+		fingerprint mfr: '0109',  prod: '2001',  model: '0102',  cc: '71,85,80,72,30,86,84'
 		// old-style fingerprint for V1 hub backwards compatibility
 		fingerprint deviceId: '0x2001', inClusters: '0x30, 0x71, 0x85, 0x80, 0x72, 0x86, 0x84'
 	}
